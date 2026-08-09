@@ -7,7 +7,9 @@ plugins {
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {
-    localPropertiesFile.load(localPropertiesFile.newDataInputStream())
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
 }
 
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
@@ -21,32 +23,33 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace "com.example.meteoapp"
+    namespace "com.example.moje_meteo"
     compileSdk 34
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_1_7
+        targetCompatibility JavaVersion.VERSION_1_7
     }
 
     kotlinOptions {
-        jvmTarget = '17'
+        jvmTarget = '1.7'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
     }
 
     defaultConfig {
-        applicationId "com.example.meteoapp"
-        minSdk 21
-        targetSdk 34
+        applicationId "com.example.moje_meteo"
+        minSdkVersion 21
+        targetSdkVersion 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
-        multiDexEnabled true
     }
 
     buildTypes {
         release {
             signingConfig signingConfigs.debug
-            minifyEnabled false
-            shrinkResources false
         }
     }
 }
@@ -55,6 +58,4 @@ flutter {
     source '../..'
 }
 
-dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.10"
-}
+dependencies {}
