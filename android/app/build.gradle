@@ -6,6 +6,11 @@ if (localPropertiesFile.exists()) {
     }
 }
 
+def flutterSdkPath = localProperties.getProperty('flutter.sdk')
+if (flutterSdkPath == null) {
+    flutterSdkPath = System.getenv('FLUTTER_ROOT')
+}
+
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
 if (flutterVersionCode == null) {
     flutterVersionCode = '1'
