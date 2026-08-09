@@ -56,7 +56,7 @@ class HeaderBar extends StatelessWidget implements PreferredSizeWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF1E293B),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.slate.withOpacity(0.3)),
+                border: Border.all(color: Colors.blueGrey.withOpacity(0.3)),
               ),
               child: Row(
                 children: [
@@ -101,7 +101,7 @@ class HeaderBar extends StatelessWidget implements PreferredSizeWidget {
                   color: showRadarOverlay ? Colors.cyan.withOpacity(0.2) : const Color(0xFF1E293B),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: showRadarOverlay ? Colors.cyanAccent : Colors.slate.withOpacity(0.3),
+                    color: showRadarOverlay ? Colors.cyanAccent : Colors.blueGrey.withOpacity(0.3),
                   ),
                 ),
                 child: Row(
