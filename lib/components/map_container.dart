@@ -123,7 +123,7 @@ class MapContainer extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: const Color(0xFF0F172A).withOpacity(0.85),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.slate.withOpacity(0.4)),
+                  border: Border.all(color: Colors.blueGrey.withOpacity(0.4)),
                 ),
                 child: Row(
                   children: [
