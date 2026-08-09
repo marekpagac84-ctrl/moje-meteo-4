@@ -69,7 +69,8 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _initSensors() {
-    _barometerSub = barometerEvents.listen((event) {
+    // Opravené kompatibilné načítanie barometra pre novšie verzie sensors_plus
+    _barometerSub = barometerEventStream().listen((event) {
       if (!mounted) return;
       setState(() {
         _currentPressure = event.pressure;
@@ -85,7 +86,7 @@ class _MainScreenState extends State<MainScreen> {
       debugPrint('Senzor barometra nedostupný na tomto zariadení (používa sa simulátor)');
     });
 
-    _accelerometerSub = accelerometerEvents.listen((event) {
+    _accelerometerSub = accelerometerEventStream().listen((event) {
       if (!mounted) return;
       double vertAcc = (event.z.abs() - 9.81).abs();
       setState(() {
