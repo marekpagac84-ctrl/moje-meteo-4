@@ -24,7 +24,7 @@ class SensorPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.slate.withOpacity(0.3)),
+        border: Border.all(color: Colors.blueGrey.withOpacity(0.3)),
         boxShadow: const [
           BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
         ],
@@ -147,7 +147,7 @@ class SensorPanel extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF0F172A),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.slate.withOpacity(0.2)),
+              border: Border.all(color: Colors.blueGrey.withOpacity(0.2)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -214,7 +214,7 @@ class SensorPanel extends StatelessWidget {
               IconButton(
                 style: IconButton.styleFrom(
                   backgroundColor: const Color(0xFF0F172A),
-                  side: BorderSide(color: Colors.slate.withOpacity(0.4)),
+                  side: BorderSide(color: Colors.blueGrey.withOpacity(0.4)),
                 ),
                 onPressed: onResetSensors,
                 icon: const Icon(Icons.refresh, color: Colors.cyanAccent, size: 16),
