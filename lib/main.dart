@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 
 import 'components/header_bar.dart';
 import 'components/map_container.dart';
@@ -35,39 +34,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  StreamSubscription? _barometerSub;
-  double _currentPressure = 1013.25;
-
-  @override
-  void initState() {
-    super.initState();
-    _initBarometer();
-  }
-
-  void _initBarometer() {
-    try {
-      _barometerSub = barometerEvents.listen(
-        (event) {
-          if (!mounted) return;
-          setState(() {
-            _currentPressure = event.pressure;
-          });
-        },
-        onError: (error) {
-          debugPrint("Barometer nedostupný: $error");
-        },
-        cancelOnError: false,
-      );
-    } catch (e) {
-      debugPrint("Chyba barometra: $e");
-    }
-  }
-
-  @override
-  void dispose() {
-    _barometerSub?.cancel();
-    super.dispose();
-  }
+  final double _currentPressure = 1013.25;
 
   @override
   Widget build(BuildContext context) {
@@ -76,7 +43,7 @@ class _MainScreenState extends State<MainScreen> {
         child: Column(
           children: [
             HeaderBar(
-              onSelectPreset: (preset) {},
+              currentLocationName: 'Nové Mesto nad Váhom',
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -86,15 +53,15 @@ class _MainScreenState extends State<MainScreen> {
                   child: Column(
                     children: [
                       SensorPanel(
-                        barometer: _currentPressure,
+                        onSimulateDrop: () {},
                       ),
                       const SizedBox(height: 16),
-                      const MapContainer(
-                        communityMarkers: [],
+                      MapContainer(
+                        userLocation: 'Nové Mesto nad Váhom',
                       ),
                       const SizedBox(height: 16),
-                      const RadarWidget(
-                        loading: false,
+                      RadarWidget(
+                        meteoData: const {},
                       ),
                     ],
                   ),
