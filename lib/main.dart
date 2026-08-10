@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
+import 'models/meteo_data.dart';
 import 'components/header_bar.dart';
-import 'components/map_container.dart';
 import 'components/sensor_panel.dart';
+import 'components/map_container.dart';
 import 'components/radar_widget.dart';
 
 void main() {
@@ -33,16 +35,40 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  final double _currentPressure = 1013.25;
+  bool _showRadar = false;
 
   @override
   Widget build(BuildContext context) {
+    final defaultBarometerState = BarometerState(
+      pressure: 1013.25,
+      pressureChangeRate: 0.0,
+      isDroppingFast: false,
+      sensorAvailable: false,
+    );
+
+    final defaultMeteoData = MeteoApiData(
+      temperature: 20.0,
+      humidity: 50,
+      windSpeed: 5.0,
+      rainProbability: 0,
+      isRainFromApi: false,
+      condition: 'Clear',
+    );
+
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
             HeaderBar(
+              currentLocationName: 'Nové Mesto nad Váhom',
               onSelectPreset: (preset) {},
+              onUseGps: () {},
+              showRadarOverlay: _showRadar,
+              onToggleRadar: () {
+                setState(() {
+                  _showRadar = !_showRadar;
+                });
+              },
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -52,15 +78,22 @@ class _MainScreenState extends State<MainScreen> {
                   child: Column(
                     children: [
                       SensorPanel(
-                        barometer: _currentPressure,
+                        barometer: defaultBarometerState,
+                        onSimulateDrop: () {},
+                        onSimulateMotion: () {},
+                        onResetSensors: () {},
                       ),
                       const SizedBox(height: 16),
-                      const MapContainer(
-                        communityMarkers: [],
+                      MapContainer(
+                        userLocation: const LatLng(48.7576, 17.8309),
+                        communityMarkers: const [],
+                        showRadarOverlay: _showRadar,
                       ),
                       const SizedBox(height: 16),
-                      const RadarWidget(
+                      RadarWidget(
+                        meteoData: defaultMeteoData,
                         loading: false,
+                        onRefresh: () {},
                       ),
                     ],
                   ),
