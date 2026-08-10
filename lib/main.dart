@@ -35,7 +35,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  StreamSubscription<BarometerEvent>? _barometerSub;
+  StreamSubscription? _barometerSub;
   double _currentPressure = 1013.25;
 
   @override
@@ -47,10 +47,14 @@ class _MainScreenState extends State<MainScreen> {
   void _initBarometer() {
     try {
       _barometerSub = barometerEventStream().listen(
-        (BarometerEvent event) {
+        (dynamic event) {
           if (!mounted) return;
           setState(() {
-            _currentPressure = event.pressure;
+            if (event is double) {
+              _currentPressure = event;
+            } else if (event != null) {
+              _currentPressure = (event.pressure as num).toDouble();
+            }
           });
         },
         onError: (error) {
@@ -75,8 +79,8 @@ class _MainScreenState extends State<MainScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            HeaderBar(
-              onSelectPreset: (preset) {},
+            const HeaderBar(
+              currentLocationName: 'Nové Mesto nad Váhom',
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -86,15 +90,15 @@ class _MainScreenState extends State<MainScreen> {
                   child: Column(
                     children: [
                       SensorPanel(
-                        barometer: _currentPressure,
+                        onSimulateDrop: () {},
                       ),
                       const SizedBox(height: 16),
                       const MapContainer(
-                        communityMarkers: [],
+                        userLocation: 'Nové Mesto nad Váhom',
                       ),
                       const SizedBox(height: 16),
                       const RadarWidget(
-                        loading: false,
+                        meteoData: {},
                       ),
                     ],
                   ),
