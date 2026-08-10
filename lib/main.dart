@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'components/header_bar.dart';
@@ -34,8 +33,6 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  final double _currentPressure = 1013.25;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
