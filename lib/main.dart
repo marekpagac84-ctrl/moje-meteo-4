@@ -33,6 +33,8 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  final double _currentPressure = 1013.25;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -40,7 +42,7 @@ class _MainScreenState extends State<MainScreen> {
         child: Column(
           children: [
             HeaderBar(
-              currentLocationName: 'Nové Mesto nad Váhom',
+              onSelectPreset: (preset) {},
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -50,15 +52,15 @@ class _MainScreenState extends State<MainScreen> {
                   child: Column(
                     children: [
                       SensorPanel(
-                        onSimulateDrop: () {},
+                        barometer: _currentPressure,
                       ),
                       const SizedBox(height: 16),
-                      MapContainer(
-                        userLocation: 'Nové Mesto nad Váhom',
+                      const MapContainer(
+                        communityMarkers: [],
                       ),
                       const SizedBox(height: 16),
-                      RadarWidget(
-                        meteoData: const {},
+                      const RadarWidget(
+                        loading: false,
                       ),
                     ],
                   ),
