@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
-// Importy tvojich komponentov
 import 'components/header_bar.dart';
 import 'components/map_container.dart';
 import 'components/sensor_panel.dart';
@@ -36,7 +35,6 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  // Dynamické pripojenie na stream, aby sme sa vyhli chybám s chýbajúcim typom BarometerEvent
   StreamSubscription? _barometerSub;
   double _currentPressure = 1013.25;
 
@@ -48,26 +46,20 @@ class _MainScreenState extends State<MainScreen> {
 
   void _initBarometer() {
     try {
-      // Bezpečné volanie streamu barometra
-      _barometerSub = barometerEventStream().listen(
-        (dynamic event) {
+      _barometerSub = barometerEvents.listen(
+        (BarometerEvent event) {
           if (!mounted) return;
           setState(() {
-            // Unifikované načítanie hodnoty tlaku bez ohľadu na verziu balíčka
-            if (event is double) {
-              _currentPressure = event;
-            } else if (event != null) {
-              _currentPressure = (event.pressure as num).toDouble();
-            }
+            _currentPressure = event.pressure;
           });
         },
         onError: (error) {
-          debugPrint("Barometer nie je dostupný: $error");
+          debugPrint("Barometer nedostupný: $error");
         },
         cancelOnError: false,
       );
     } catch (e) {
-      debugPrint("Chyba pri inicializácii barometra: $e");
+      debugPrint("Chyba barometra: $e");
     }
   }
 
@@ -83,7 +75,9 @@ class _MainScreenState extends State<MainScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const HeaderBar(),
+            const HeaderBar(
+              currentLocationName: 'Nové Mesto nad Váhom',
+            ),
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -91,11 +85,15 @@ class _MainScreenState extends State<MainScreen> {
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      SensorPanel(pressure: _currentPressure),
+                      const SensorPanel(),
                       const SizedBox(height: 16),
-                      const MapContainer(),
+                      const MapContainer(
+                        userLocation: 'Nové Mesto nad Váhom',
+                      ),
                       const SizedBox(height: 16),
-                      const RadarWidget(),
+                      const RadarWidget(
+                        meteoData: {},
+                      ),
                     ],
                   ),
                 ),
