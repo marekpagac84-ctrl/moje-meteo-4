@@ -51,6 +51,7 @@ class _MainScreenState extends State<MainScreen> {
       // Bezpečné volanie streamu barometra
       _barometerSub = barometerEventStream().listen(
         (dynamic event) {
+          if (!mounted) return;
           setState(() {
             // Unifikované načítanie hodnoty tlaku bez ohľadu na verziu balíčka
             if (event is double) {
