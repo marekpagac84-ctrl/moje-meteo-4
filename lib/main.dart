@@ -40,19 +40,20 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final defaultBarometerState = BarometerState(
-      pressure: 1013.25,
+      currentPressure: 1013.25,
       pressureChangeRate: 0.0,
-      isDroppingFast: false,
-      sensorAvailable: false,
+      isMovingVertically: false,
+      pressureHistory: const [],
     );
 
     final defaultMeteoData = MeteoApiData(
       temperature: 20.0,
-      humidity: 50,
+      precipitation: 0.0,
       windSpeed: 5.0,
-      rainProbability: 0,
-      isRainFromApi: false,
-      condition: 'Clear',
+      weatherCode: 0,
+      isRain: false,
+      lastUpdated: 'Teraz',
+      statusMessage: 'Jasno',
     );
 
     return Scaffold(
