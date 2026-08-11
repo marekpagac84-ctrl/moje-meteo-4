@@ -8,8 +8,7 @@
 
     <application
         android:label="Live Storm Radar"
-        android:name="${applicationName}"
-        android:icon="@android:drawable/ic_menu_compass">
+        android:name="${applicationName}">
         <activity
             android:name=".MainActivity"
             android:exported="true"
