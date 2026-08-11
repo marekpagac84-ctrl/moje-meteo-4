@@ -8,6 +8,7 @@ import 'components/map_container.dart';
 import 'components/radar_widget.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
