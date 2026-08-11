@@ -1,4 +1,4 @@
-import 'package0:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'models/meteo_data.dart';
