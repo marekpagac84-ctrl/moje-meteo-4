@@ -45,14 +45,12 @@ class MeteoApiData {
     required this.statusMessage,
   });
 
-  // Factory konstruktor na načítanie dát z Open-Meteo API
   factory MeteoApiData.fromJson(Map<String, dynamic> json) {
     final current = json['current_weather'] ?? {};
     final code = (current['weathercode'] as num?)?.toInt() ?? 0;
     final temp = (current['temperature'] as num?)?.toDouble() ?? 0.0;
     final wind = (current['windspeed'] as num?)?.toDouble() ?? 0.0;
 
-    // Prípadné srážky (ak ich vráti hourly alebo current)
     final rainVal = (json['hourly']?['precipitation']?[0] as num?)?.toDouble() ?? 0.0;
 
     final now = DateTime.now();
@@ -69,7 +67,6 @@ class MeteoApiData {
     );
   }
 
-  // Preklad WMO kódov počasia do slovenčiny
   static String _getWeatherDescription(int code) {
     switch (code) {
       case 0:
