@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Moje Meteo',
+      title: 'Live Storm Radar',
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F172A),
       ),
@@ -46,12 +46,11 @@ class _MainScreenState extends State<MainScreen> {
 
   MeteoApiData? _meteoData;
 
-  // Predvolené súradnice (Nové Mesto nad Váhom)
+  // Predvolená poloha (Nové Mesto nad Váhom)
   double _lat = 48.7576;
   double _lng = 17.8309;
   String _locationName = 'Nové Mesto nad Váhom';
 
-  // Stavy pre Barometer
   BarometerState _barometerState = BarometerState(
     currentPressure: 1013.25,
     pressureChangeRate: 0.0,
@@ -74,18 +73,14 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
-  // --- 1. ZÍSKANIE GPS POLOHY ---
   Future<void> _initGpsLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _fetchWeatherData();
       return;
     }
 
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
@@ -110,18 +105,17 @@ class _MainScreenState extends State<MainScreen> {
         _locationName = 'Moja GPS poloha';
       });
     } catch (e) {
-      print('Chyba GPS: $e');
+      debugPrint('Chyba GPS: $e');
     }
 
     _fetchWeatherData();
   }
 
-  // --- 2. ČÍTANIE HARDVÉROVÉHO BAROMETRA ---
   void _initBarometerSensor() {
     try {
       _barometerSubscription = barometerEventStream().listen(
         (BarometerEvent event) {
-          final double newPressure = event.pressure; // Hectopascals (hPa)
+          final double newPressure = event.pressure;
 
           setState(() {
             final updatedHistory = List<double>.from(_barometerState.pressureHistory);
@@ -143,15 +137,14 @@ class _MainScreenState extends State<MainScreen> {
           });
         },
         onError: (error) {
-          print('Barometer nie je dostupný na tomto zariadení: $error');
+          debugPrint('Barometer nie je dostupný: $error');
         },
       );
     } catch (e) {
-      print('Senzor tlaku nie je podporovaný: $e');
+      debugPrint('Senzor tlaku nie je podporovaný: $e');
     }
   }
 
-  // --- 3. STIAHNUTIE METEO DÁT ---
   Future<void> _fetchWeatherData() async {
     setState(() {
       _isLoadingMeteo = true;
@@ -176,7 +169,7 @@ class _MainScreenState extends State<MainScreen> {
         });
       }
     } catch (e) {
-      print('Chyba pri sťahovaní počasia: $e');
+      debugPrint('Chyba pri sťahovaní počasia: $e');
       setState(() {
         _isLoadingMeteo = false;
       });
@@ -214,7 +207,6 @@ class _MainScreenState extends State<MainScreen> {
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      // Panel s reálnym tlakom zo snímača mobilu
                       SensorPanel(
                         barometer: _barometerState,
                         onSimulateDrop: () {},
@@ -222,14 +214,12 @@ class _MainScreenState extends State<MainScreen> {
                         onResetSensors: () {},
                       ),
                       const SizedBox(height: 16),
-                      // Mapa vycentrovaná podľa GPS súradníc
                       MapContainer(
                         userLocation: LatLng(_lat, _lng),
                         communityMarkers: const [],
                         showRadarOverlay: _showRadar,
                       ),
                       const SizedBox(height: 16),
-                      // Radar a meteo karta
                       RadarWidget(
                         meteoData: _meteoData,
                         loading: _isLoadingMeteo,
