@@ -17,8 +17,16 @@ class MapContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ukážkové body s teplotami pre mestá v okolí
+    final cityTemperatures = [
+      {'name': 'Nové Mesto', 'temp': '20°C', 'point': userLocation},
+      {'name': 'Trenčín', 'temp': '21°C', 'point': const LatLng(48.8945, 18.0444)},
+      {'name': 'Piešťany', 'temp': '20°C', 'point': const LatLng(48.5944, 17.8258)},
+      {'name': 'Trnava', 'temp': '22°C', 'point': const LatLng(48.3775, 17.5883)},
+    ];
+
     return Container(
-      height: 300,
+      height: 320,
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(24),
@@ -34,49 +42,74 @@ class MapContainer extends StatelessWidget {
             FlutterMap(
               options: MapOptions(
                 initialCenter: userLocation,
-                initialZoom: 11.5,
+                initialZoom: 10.5,
               ),
               children: [
+                // Základná mapa (OpenStreetMap)
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.example.meteoapp',
                 ),
+
+                // Živý zrážkový radar z RainViewer API (zobrazí sa pri prepnutí radaru)
                 if (showRadarOverlay)
-                  CircleLayer(
-                    circles: [
-                      CircleMarker(
-                        point: userLocation,
-                        radius: 8000,
-                        useRadiusInMeter: true,
-                        color: Colors.blue.withOpacity(0.25),
-                        borderColor: Colors.cyanAccent.withOpacity(0.6),
-                        borderStrokeWidth: 2,
-                      ),
-                      CircleMarker(
-                        point: LatLng(userLocation.latitude + 0.015, userLocation.longitude - 0.02),
-                        radius: 5000,
-                        useRadiusInMeter: true,
-                        color: Colors.red.withOpacity(0.35),
-                        borderColor: Colors.redAccent,
-                        borderStrokeWidth: 2,
-                      ),
-                    ],
+                  TileLayer(
+                    urlTemplate: 'https://tilecache.rainviewer.com/v2/radar/nowcast/256/{z}/{x}/{y}/2/1_1.png',
+                    opacity: 0.65,
                   ),
+
+                // Značky pre polohu užívateľa, komunitné hlásenia a teploty v mestách
                 MarkerLayer(
                   markers: [
+                    // Značka: Moja Poloha
                     Marker(
                       point: userLocation,
-                      width: 48,
-                      height: 48,
+                      width: 44,
+                      height: 44,
                       child: Container(
                         decoration: BoxDecoration(
                           color: Colors.cyan.withOpacity(0.3),
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.cyanAccent, width: 2),
                         ),
-                        child: const Icon(Icons.my_location, color: Colors.cyanAccent, size: 24),
+                        child: const Icon(Icons.my_location, color: Colors.cyanAccent, size: 22),
                       ),
                     ),
+
+                    // Značky: Teploty miest na mape
+                    ...cityTemperatures.map((city) {
+                      return Marker(
+                        point: city['point'] as LatLng,
+                        width: 90,
+                        height: 30,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A).withOpacity(0.85),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.amberAccent.withOpacity(0.8)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.thermostat, color: Colors.amberAccent, size: 14),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${city['name']}: ${city['temp']}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+
+                    // Značky: Komunitné senzory (pokles tlaku / búrky)
                     ...communityMarkers.map((m) {
                       return Marker(
                         point: LatLng(m.latitude, m.longitude),
@@ -115,6 +148,8 @@ class MapContainer extends StatelessWidget {
                 ),
               ],
             ),
+
+            // Spodná legenda na mape
             Positioned(
               bottom: 12,
               left: 12,
@@ -129,11 +164,11 @@ class MapContainer extends StatelessWidget {
                   children: [
                     Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.cyanAccent, shape: BoxShape.circle)),
                     const SizedBox(width: 6),
-                    const Text('Tvoja poloha', style: TextStyle(color: Colors.white, fontSize: 10)),
-                    const SizedBox(width: 12),
-                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle)),
+                    const Text('Poloha', style: TextStyle(color: Colors.white, fontSize: 10)),
+                    const SizedBox(width: 10),
+                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.amberAccent, shape: BoxShape.circle)),
                     const SizedBox(width: 6),
-                    const Text('Pokles tlaku', style: TextStyle(color: Colors.white, fontSize: 10)),
+                    const Text('Teplota', style: TextStyle(color: Colors.white, fontSize: 10)),
                   ],
                 ),
               ),
