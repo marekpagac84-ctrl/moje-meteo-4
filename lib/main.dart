@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -119,8 +120,8 @@ class _MainScreenState extends State<MainScreen> {
   // --- 2. ČÍTANIE HARDVÉROVÉHO BAROMETRA ---
   void _initBarometerSensor() {
     try {
-      // Použijeme barometerEventStream ako getter bez typovania
-      _barometerSubscription = barometerEventStream.listen(
+      // V sensors_plus 5.x sa používa barometerEvents
+      _barometerSubscription = barometerEvents.listen(
         (event) {
           final double newPressure = event.pressure; // hPa
 
@@ -144,7 +145,7 @@ class _MainScreenState extends State<MainScreen> {
           });
         },
         onError: (error) {
-          print('Barometer nie je dostupný: $error');
+          print('Barometer nie je dostupný na tomto zariadení: $error');
         },
       );
     } catch (e) {
