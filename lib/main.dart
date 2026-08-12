@@ -1,4 +1,3 @@
-
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -120,8 +119,8 @@ class _MainScreenState extends State<MainScreen> {
   // --- 2. ČÍTANIE HARDVÉROVÉHO BAROMETRA ---
   void _initBarometerSensor() {
     try {
-      // V sensors_plus 5.x sa používa barometerEvents
-      _barometerSubscription = barometerEvents.listen(
+      // Použitie barometerEventStream() ako funkcie
+      _barometerSubscription = barometerEventStream().listen(
         (event) {
           final double newPressure = event.pressure; // hPa
 
