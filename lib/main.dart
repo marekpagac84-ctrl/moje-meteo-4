@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Live Storm Radar',
+      title: 'Moje Meteo',
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0F172A),
       ),
@@ -46,11 +46,12 @@ class _MainScreenState extends State<MainScreen> {
 
   MeteoApiData? _meteoData;
 
-  // Predvolená poloha (Nové Mesto nad Váhom)
+  // Predvolené súradnice (Nové Mesto nad Váhom)
   double _lat = 48.7576;
   double _lng = 17.8309;
   String _locationName = 'Nové Mesto nad Váhom';
 
+  // Stavy pre Barometer
   BarometerState _barometerState = BarometerState(
     currentPressure: 1013.25,
     pressureChangeRate: 0.0,
@@ -58,7 +59,7 @@ class _MainScreenState extends State<MainScreen> {
     pressureHistory: [],
   );
 
-  StreamSubscription<BarometerEvent>? _barometerSubscription;
+  StreamSubscription? _barometerSubscription;
 
   @override
   void initState() {
@@ -73,14 +74,18 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
+  // --- 1. ZÍSKANIE GPS POLOHY ---
   Future<void> _initGpsLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _fetchWeatherData();
       return;
     }
 
-    LocationPermission permission = await Geolocator.checkPermission();
+    permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
@@ -105,17 +110,19 @@ class _MainScreenState extends State<MainScreen> {
         _locationName = 'Moja GPS poloha';
       });
     } catch (e) {
-      debugPrint('Chyba GPS: $e');
+      print('Chyba GPS: $e');
     }
 
     _fetchWeatherData();
   }
 
+  // --- 2. ČÍTANIE HARDVÉROVÉHO BAROMETRA ---
   void _initBarometerSensor() {
     try {
-      _barometerSubscription = barometerEventStream().listen(
-        (BarometerEvent event) {
-          final double newPressure = event.pressure;
+      // Použijeme barometerEventStream ako getter bez typovania
+      _barometerSubscription = barometerEventStream.listen(
+        (event) {
+          final double newPressure = event.pressure; // hPa
 
           setState(() {
             final updatedHistory = List<double>.from(_barometerState.pressureHistory);
@@ -137,14 +144,15 @@ class _MainScreenState extends State<MainScreen> {
           });
         },
         onError: (error) {
-          debugPrint('Barometer nie je dostupný: $error');
+          print('Barometer nie je dostupný: $error');
         },
       );
     } catch (e) {
-      debugPrint('Senzor tlaku nie je podporovaný: $e');
+      print('Senzor tlaku nie je podporovaný: $e');
     }
   }
 
+  // --- 3. STIAHNUTIE METEO DÁT ---
   Future<void> _fetchWeatherData() async {
     setState(() {
       _isLoadingMeteo = true;
@@ -169,7 +177,7 @@ class _MainScreenState extends State<MainScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Chyba pri sťahovaní počasia: $e');
+      print('Chyba pri sťahovaní počasia: $e');
       setState(() {
         _isLoadingMeteo = false;
       });
