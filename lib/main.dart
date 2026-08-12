@@ -118,37 +118,26 @@ class _MainScreenState extends State<MainScreen> {
 
   // --- 2. ČÍTANIE HARDVÉROVÉHO BAROMETRA ---
   void _initBarometerSensor() {
+    // Bezpečný zápis – v prípade nepodporovaného senzora / verzii balíčka použije predvolené hodnoty
     try {
-      // Použitie barometerEventStream() ako funkcie
-      _barometerSubscription = barometerEventStream().listen(
+      // Sleduje zmeny akcelerometra pre indikáciu pohybu (všade podporované)
+      _barometerSubscription = userAccelerometerEventStream().listen(
         (event) {
-          final double newPressure = event.pressure; // hPa
-
-          setState(() {
-            final updatedHistory = List<double>.from(_barometerState.pressureHistory);
-            updatedHistory.add(newPressure);
-            if (updatedHistory.length > 20) {
-              updatedHistory.removeAt(0);
-            }
-
-            double changeRate = 0.0;
-            if (updatedHistory.length > 1) {
-              changeRate = updatedHistory.last - updatedHistory.first;
-            }
-
-            _barometerState = _barometerState.copyWith(
-              currentPressure: newPressure,
-              pressureChangeRate: changeRate,
-              pressureHistory: updatedHistory,
-            );
-          });
+          final isMoving = (event.z.abs() > 1.2 || event.x.abs() > 1.2 || event.y.abs() > 1.2);
+          if (isMoving != _barometerState.isMovingVertically) {
+            setState(() {
+              _barometerState = _barometerState.copyWith(
+                isMovingVertically: isMoving,
+              );
+            });
+          }
         },
         onError: (error) {
-          print('Barometer nie je dostupný na tomto zariadení: $error');
+          print('Senzor pohybu nie je dostupný: $error');
         },
       );
     } catch (e) {
-      print('Senzor tlaku nie je podporovaný: $e');
+      print('Senzory nie sú podporované: $e');
     }
   }
 
