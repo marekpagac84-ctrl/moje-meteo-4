@@ -44,6 +44,67 @@ class MeteoApiData {
     required this.lastUpdated,
     required this.statusMessage,
   });
+
+  // Factory konstruktor na načítanie dát z Open-Meteo API
+  factory MeteoApiData.fromJson(Map<String, dynamic> json) {
+    final current = json['current_weather'] ?? {};
+    final code = (current['weathercode'] as num?)?.toInt() ?? 0;
+    final temp = (current['temperature'] as num?)?.toDouble() ?? 0.0;
+    final wind = (current['windspeed'] as num?)?.toDouble() ?? 0.0;
+
+    // Prípadné srážky (ak ich vráti hourly alebo current)
+    final rainVal = (json['hourly']?['precipitation']?[0] as num?)?.toDouble() ?? 0.0;
+
+    final now = DateTime.now();
+    final timeStr = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+
+    return MeteoApiData(
+      temperature: temp,
+      precipitation: rainVal,
+      windSpeed: wind,
+      weatherCode: code,
+      isRain: rainVal > 0 || [51, 53, 55, 61, 63, 65, 80, 81, 82].contains(code),
+      lastUpdated: timeStr,
+      statusMessage: _getWeatherDescription(code),
+    );
+  }
+
+  // Preklad WMO kódov počasia do slovenčiny
+  static String _getWeatherDescription(int code) {
+    switch (code) {
+      case 0:
+        return 'Jasno';
+      case 1:
+      case 2:
+      case 3:
+        return 'Čiastočne oblačno';
+      case 45:
+      case 48:
+        return 'Hmla';
+      case 51:
+      case 53:
+      case 55:
+        return 'Mrholenie';
+      case 61:
+      case 63:
+      case 65:
+        return 'Dážď';
+      case 71:
+      case 73:
+      case 75:
+        return 'Sneženie';
+      case 80:
+      case 81:
+      case 82:
+        return 'Prehánky';
+      case 95:
+      case 96:
+      case 99:
+        return 'Búrka';
+      default:
+        return 'Neznáme počasie';
+    }
+  }
 }
 
 class PresetLocation {
