@@ -17,7 +17,6 @@ class MapContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Ukážkové body s teplotami pre mestá v okolí
     final cityTemperatures = [
       {'name': 'Nové Mesto', 'temp': '20°C', 'point': userLocation},
       {'name': 'Trenčín', 'temp': '21°C', 'point': const LatLng(48.8945, 18.0444)},
@@ -45,23 +44,20 @@ class MapContainer extends StatelessWidget {
                 initialZoom: 10.5,
               ),
               children: [
-                // Základná mapa (OpenStreetMap)
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.example.meteoapp',
                 ),
-
-                // Živý zrážkový radar z RainViewer API (zobrazí sa pri prepnutí radaru)
                 if (showRadarOverlay)
-                  TileLayer(
-                    urlTemplate: 'https://tilecache.rainviewer.com/v2/radar/nowcast/256/{z}/{x}/{y}/2/1_1.png',
+                  Opacity(
                     opacity: 0.65,
+                    child: TileLayer(
+                      urlTemplate:
+                          'https://tilecache.rainviewer.com/v2/radar/nowcast/256/{z}/{x}/{y}/2/1_1.png',
+                    ),
                   ),
-
-                // Značky pre polohu užívateľa, komunitné hlásenia a teploty v mestách
                 MarkerLayer(
                   markers: [
-                    // Značka: Moja Poloha
                     Marker(
                       point: userLocation,
                       width: 44,
@@ -75,8 +71,6 @@ class MapContainer extends StatelessWidget {
                         child: const Icon(Icons.my_location, color: Colors.cyanAccent, size: 22),
                       ),
                     ),
-
-                    // Značky: Teploty miest na mape
                     ...cityTemperatures.map((city) {
                       return Marker(
                         point: city['point'] as LatLng,
@@ -108,8 +102,6 @@ class MapContainer extends StatelessWidget {
                         ),
                       );
                     }),
-
-                    // Značky: Komunitné senzory (pokles tlaku / búrky)
                     ...communityMarkers.map((m) {
                       return Marker(
                         point: LatLng(m.latitude, m.longitude),
@@ -148,8 +140,6 @@ class MapContainer extends StatelessWidget {
                 ),
               ],
             ),
-
-            // Spodná legenda na mape
             Positioned(
               bottom: 12,
               left: 12,
