@@ -23,7 +23,7 @@ class MapContainer extends StatelessWidget {
         child: FlutterMap(
           options: MapOptions(
             initialCenter: userLocation,
-            initialZoom: 6.0,
+            initialZoom: 7.0,
             onTap: (tapPosition, point) {
               onLocationSelected(point);
             },
@@ -31,10 +31,12 @@ class MapContainer extends StatelessWidget {
           children: [
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.example.meteo_app',
             ),
             if (showRadarOverlay)
               TileLayer(
                 urlTemplate: 'https://tilecache.rainviewer.com/v2/radar/now/256/{z}/{x}/{y}/2/1_1.png',
+                userAgentPackageName: 'com.example.meteo_app',
                 tileBuilder: (context, child, tile) => Opacity(opacity: 0.6, child: child),
               ),
             MarkerLayer(
