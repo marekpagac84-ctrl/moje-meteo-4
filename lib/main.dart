@@ -12,6 +12,13 @@ import 'components/radar_widget.dart';
 import 'components/sensor_panel.dart';
 import 'models/meteo_data.dart';
 
+class RadarFrame {
+  final String path;
+  final int time;
+
+  RadarFrame({required this.path, required this.time});
+}
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
@@ -50,7 +57,7 @@ class _MainScreenState extends State<MainScreen> {
   double _lng = 17.8309;
   String _locationName = 'Nové Mesto nad Váhom';
 
-  List<String> _radarFrames = [];
+  List<RadarFrame> _radarFrames = [];
   int _currentFrameIndex = 0;
   bool _isPlayingAnimation = false;
   Timer? _animationTimer;
@@ -124,6 +131,7 @@ class _MainScreenState extends State<MainScreen> {
     try {
       _accelSubscription = userAccelerometerEventStream().listen((event) {
         final now = DateTime.now();
+        // Hlásenie senzorov 1x za minútu (60 000 ms) pre plynulý chod
         if (now.difference(_lastAccelUpdate).inMilliseconds < 60000) return;
 
         final double totalMotion = event.x.abs() + event.y.abs() + event.z.abs();
@@ -149,23 +157,23 @@ class _MainScreenState extends State<MainScreen> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        List<String> paths = [];
+        List<RadarFrame> frames = [];
 
         if (data.containsKey('radar')) {
           if (data['radar'].containsKey('past')) {
             for (var item in data['radar']['past']) {
-              paths.add(item['path']);
+              frames.add(RadarFrame(path: item['path'], time: item['time']));
             }
           }
           if (data['radar'].containsKey('nowcast')) {
             for (var item in data['radar']['nowcast']) {
-              paths.add(item['path']);
+              frames.add(RadarFrame(path: item['path'], time: item['time']));
             }
           }
         }
 
         setState(() {
-          _radarFrames = paths;
+          _radarFrames = frames;
           if (_radarFrames.isNotEmpty) {
             _currentFrameIndex = _radarFrames.length ~/ 2;
           }
@@ -237,11 +245,22 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  String _formatFrameTime(int timestamp) {
+    final dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000).toLocal();
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
     final String? currentTile = _radarFrames.isNotEmpty && _currentFrameIndex < _radarFrames.length
-        ? _radarFrames[_currentFrameIndex]
+        ? _radarFrames[_currentFrameIndex].path
         : null;
+
+    final String timeDisplay = _radarFrames.isNotEmpty && _currentFrameIndex < _radarFrames.length
+        ? _formatFrameTime(_radarFrames[_currentFrameIndex].time)
+        : "--:--";
 
     return Scaffold(
       body: SafeArea(
@@ -298,6 +317,8 @@ class _MainScreenState extends State<MainScreen> {
                           _fetchWeatherData();
                         },
                       ),
+                      
+                      // OVLÁDANIE S PRESNÝM ČASOM SNÍMKY
                       if (_radarFrames.isNotEmpty)
                         Container(
                           margin: const EdgeInsets.only(top: 8),
@@ -316,9 +337,20 @@ class _MainScreenState extends State<MainScreen> {
                                 ),
                                 onPressed: _toggleAnimation,
                               ),
-                              const Text(
-                                'Pohyb mrakov',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black26,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  timeDisplay,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
                               ),
                               Expanded(
                                 child: Slider(
@@ -342,6 +374,7 @@ class _MainScreenState extends State<MainScreen> {
                             ],
                           ),
                         ),
+
                       const SizedBox(height: 16),
                       RadarWidget(
                         meteoData: _meteoData,
