@@ -117,9 +117,9 @@ class _MainScreenState extends State<MainScreen> {
     _fetchWeatherData();
   }
 
-  // --- 2. HARDVÉROVÉ SENZORY (BAROMETER + AKCELEROMETER) ---
+  // --- 2. HARDVÉROVÉ SENZORY ---
   void _initSensors() {
-    // Akcelerometer - sledovanie pohybu bez neustáleho prekrešľovania
+    // Akcelerometer - sledovanie pohybu bez zbytočného re-renderingu
     try {
       _accelSubscription = userAccelerometerEventStream().listen((event) {
         final double totalMotion = event.x.abs() + event.y.abs() + event.z.abs();
@@ -133,43 +133,6 @@ class _MainScreenState extends State<MainScreen> {
       });
     } catch (e) {
       print('Akcelerometer nie je dostupný: $e');
-    }
-
-    // Barometer - Použitie správneho streamu barometerEvents
-    try {
-      _barometerSubscription = barometerEvents.listen(
-        (event) {
-          final double newPressure = event.pressure;
-
-          setState(() {
-            final updatedHistory = List<double>.from(_barometerState.pressureHistory);
-            updatedHistory.add(newPressure);
-            if (updatedHistory.length > 20) {
-              updatedHistory.removeAt(0);
-            }
-
-            double changeRate = _barometerState.pressureChangeRate;
-            if (!_barometerState.isMovingVertically && updatedHistory.length > 1) {
-              changeRate = updatedHistory.last - updatedHistory.first;
-            }
-
-            final double altitude = BarometerState.calculateAltitude(
-              newPressure,
-              _barometerState.basePressure,
-            );
-
-            _barometerState = _barometerState.copyWith(
-              currentPressure: newPressure,
-              pressureChangeRate: changeRate,
-              pressureHistory: updatedHistory,
-              estimatedAltitude: altitude,
-            );
-          });
-        },
-        onError: (error) => print('Barometer chyba: $error'),
-      );
-    } catch (e) {
-      print('Barometer nie je podporovaný: $e');
     }
   }
 
@@ -196,7 +159,10 @@ class _MainScreenState extends State<MainScreen> {
 
         setState(() {
           _meteoData = MeteoApiData.fromJson(data);
-          _barometerState = _barometerState.copyWith(basePressure: seaLevelP);
+          _barometerState = _barometerState.copyWith(
+            basePressure: seaLevelP,
+            currentPressure: seaLevelP,
+          );
           _isLoadingMeteo = false;
         });
       } else {
