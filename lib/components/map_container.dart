@@ -6,7 +6,6 @@ class MapContainer extends StatelessWidget {
   final LatLng userLocation;
   final bool showRadarOverlay;
   final double timeOffsetHours;
-  final List<int> radarTimestamps;
   final Function(LatLng) onLocationSelected;
 
   const MapContainer({
@@ -14,21 +13,11 @@ class MapContainer extends StatelessWidget {
     required this.userLocation,
     required this.showRadarOverlay,
     required this.timeOffsetHours,
-    required this.radarTimestamps,
     required this.onLocationSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    int timestamp = 0;
-    if (radarTimestamps.isNotEmpty) {
-      int index = timeOffsetHours.round();
-      if (index >= radarTimestamps.length) {
-        index = radarTimestamps.length - 1;
-      }
-      timestamp = radarTimestamps[index];
-    }
-
     return SizedBox(
       height: 380,
       child: ClipRRect(
@@ -38,7 +27,7 @@ class MapContainer extends StatelessWidget {
             FlutterMap(
               options: MapOptions(
                 initialCenter: userLocation,
-                initialZoom: 9.5,
+                initialZoom: 9.0,
                 maxZoom: 12.0,
                 minZoom: 3.0,
                 onTap: (tapPosition, point) {
@@ -46,20 +35,22 @@ class MapContainer extends StatelessWidget {
                 },
               ),
               children: [
+                // Základná mapa
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'sk.meteoapp.app',
                 ),
-                if (showRadarOverlay && timestamp > 0)
+                // Radarové zrážky
+                if (showRadarOverlay)
                   Opacity(
-                    opacity: 0.75,
+                    opacity: 0.7,
                     child: TileLayer(
-                      key: ValueKey(timestamp),
                       urlTemplate:
-                          'https://tilecache.rainviewer.com/v2/radar/$timestamp/256/{z}/{x}/{y}/2/1_1.png',
+                          'https://tilecache.rainviewer.com/v2/radar/nowcast/256/{z}/{x}/{y}/2/1_1.png',
                       userAgentPackageName: 'sk.meteoapp.app',
                     ),
                   ),
+                // Značka polohy
                 MarkerLayer(
                   markers: [
                     Marker(
