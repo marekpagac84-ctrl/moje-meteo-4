@@ -54,6 +54,8 @@ class _MainScreenState extends State<MainScreen> {
   bool _isPlayingAnimation = false;
   Timer? _animationTimer;
 
+  List<int> _radarTimestamps = [];
+
   BarometerState _barometerState = BarometerState(
     currentPressure: 1013.25,
     pressureChangeRate: 0.0,
@@ -139,10 +141,42 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Future<void> _fetchRadarTimestamps() async {
+    try {
+      final res = await http.get(
+        Uri.parse('https://api.rainviewer.com/public/weather-maps.json'),
+      );
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        List<int> times = [];
+
+        if (data['radar'] != null &&
+            data['radar']['past'] != null &&
+            (data['radar']['past'] as List).isNotEmpty) {
+          times.add(data['radar']['past'].last['time']);
+        }
+
+        if (data['radar'] != null && data['radar']['nowcast'] != null) {
+          for (var item in data['radar']['nowcast']) {
+            times.add(item['time']);
+          }
+        }
+
+        setState(() {
+          _radarTimestamps = times;
+        });
+      }
+    } catch (e) {
+      print('Chyba radaru: $e');
+    }
+  }
+
   Future<void> _fetchWeatherData() async {
     setState(() {
       _isLoadingMeteo = true;
     });
+
+    _fetchRadarTimestamps();
 
     try {
       final url = Uri.parse(
@@ -190,10 +224,13 @@ class _MainScreenState extends State<MainScreen> {
       setState(() {
         _isPlayingAnimation = true;
       });
-      _animationTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
+      _animationTimer = Timer.periodic(const Duration(milliseconds: 600), (timer) {
         setState(() {
-          _currentTimeOffset += 0.25;
-          if (_currentTimeOffset >= 10.0) {
+          _currentTimeOffset += 1.0;
+          double maxLimit = _radarTimestamps.isNotEmpty
+              ? (_radarTimestamps.length - 1).toDouble()
+              : 5.0;
+          if (_currentTimeOffset > maxLimit) {
             _currentTimeOffset = 0.0;
           }
         });
@@ -203,11 +240,8 @@ class _MainScreenState extends State<MainScreen> {
 
   String _formatOffsetTime(double offset) {
     if (offset < 0.05) return "Teraz";
-    int hours = offset.floor();
-    int minutes = ((offset - hours) * 60).round();
-    if (hours == 0) return "+${minutes}m";
-    if (minutes == 0) return "+${hours}h";
-    return "+${hours}h ${minutes}m";
+    int minutes = (offset * 10).round();
+    return "+${minutes}m predpoveď";
   }
 
   double _getInterpolatedPrecipProb(double offsetHours) {
@@ -271,6 +305,10 @@ class _MainScreenState extends State<MainScreen> {
     final int weatherCode = _getCurrentWeatherCode(_currentTimeOffset);
     final weatherInfo = _getWeatherDescription(weatherCode);
 
+    double maxSliderValue = _radarTimestamps.isNotEmpty
+        ? (_radarTimestamps.length - 1).toDouble()
+        : 5.0;
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -317,6 +355,7 @@ class _MainScreenState extends State<MainScreen> {
                         userLocation: LatLng(_lat, _lng),
                         showRadarOverlay: _showRadar,
                         timeOffsetHours: _currentTimeOffset,
+                        radarTimestamps: _radarTimestamps,
                         onLocationSelected: (newPoint) {
                           setState(() {
                             _lat = newPoint.latitude;
@@ -344,17 +383,18 @@ class _MainScreenState extends State<MainScreen> {
                               onPressed: _toggleAnimation,
                             ),
                             SizedBox(
-                              width: 75,
+                              width: 90,
                               child: Text(
                                 _formatOffsetTime(_currentTimeOffset),
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                               ),
                             ),
                             Expanded(
                               child: Slider(
-                                value: _currentTimeOffset,
+                                value: _currentTimeOffset.clamp(0.0, maxSliderValue),
                                 min: 0.0,
-                                max: 10.0,
+                                max: maxSliderValue,
+                                divisions: maxSliderValue > 0 ? maxSliderValue.toInt() : 1,
                                 onChanged: (val) {
                                   setState(() {
                                     _currentTimeOffset = val;
