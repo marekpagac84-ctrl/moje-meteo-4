@@ -12,13 +12,6 @@ import 'components/radar_widget.dart';
 import 'components/sensor_panel.dart';
 import 'models/meteo_data.dart';
 
-class RadarFrame {
-  final String path;
-  final int time;
-
-  RadarFrame({required this.path, required this.time});
-}
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
@@ -57,8 +50,8 @@ class _MainScreenState extends State<MainScreen> {
   double _lng = 17.8309;
   String _locationName = 'Nové Mesto nad Váhom';
 
-  List<RadarFrame> _radarFrames = [];
-  int _currentFrameIndex = 0;
+  // Časový posun (0.0 = Teraz, 10.0 = o 10 hodín)
+  double _currentTimeOffset = 0.0;
   bool _isPlayingAnimation = false;
   Timer? _animationTimer;
 
@@ -79,7 +72,6 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _initGpsLocation();
     _initSensors();
-    _fetchRadarFrames();
   }
 
   @override
@@ -131,7 +123,6 @@ class _MainScreenState extends State<MainScreen> {
     try {
       _accelSubscription = userAccelerometerEventStream().listen((event) {
         final now = DateTime.now();
-        // Hlásenie senzorov 1x za minútu (60 000 ms) pre plynulý chod
         if (now.difference(_lastAccelUpdate).inMilliseconds < 60000) return;
 
         final double totalMotion = event.x.abs() + event.y.abs() + event.z.abs();
@@ -149,41 +140,6 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  Future<void> _fetchRadarFrames() async {
-    try {
-      final response = await http.get(
-        Uri.parse('https://api.rainviewer.com/public/weather-maps.json'),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        List<RadarFrame> frames = [];
-
-        if (data.containsKey('radar')) {
-          if (data['radar'].containsKey('past')) {
-            for (var item in data['radar']['past']) {
-              frames.add(RadarFrame(path: item['path'], time: item['time']));
-            }
-          }
-          if (data['radar'].containsKey('nowcast')) {
-            for (var item in data['radar']['nowcast']) {
-              frames.add(RadarFrame(path: item['path'], time: item['time']));
-            }
-          }
-        }
-
-        setState(() {
-          _radarFrames = frames;
-          if (_radarFrames.isNotEmpty) {
-            _currentFrameIndex = _radarFrames.length ~/ 2;
-          }
-        });
-      }
-    } catch (e) {
-      print('Chyba načítania radarových snímok: $e');
-    }
-  }
-
   Future<void> _fetchWeatherData() async {
     setState(() {
       _isLoadingMeteo = true;
@@ -191,7 +147,7 @@ class _MainScreenState extends State<MainScreen> {
 
     try {
       final url = Uri.parse(
-        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation,surface_pressure&forecast_hours=12',
+        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation_probability,weathercode,cloud_cover,surface_pressure&forecast_hours=12',
       );
 
       final response = await http.get(url);
@@ -226,8 +182,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _toggleAnimation() {
-    if (_radarFrames.isEmpty) return;
-
     if (_isPlayingAnimation) {
       _animationTimer?.cancel();
       setState(() {
@@ -237,30 +191,86 @@ class _MainScreenState extends State<MainScreen> {
       setState(() {
         _isPlayingAnimation = true;
       });
-      _animationTimer = Timer.periodic(const Duration(milliseconds: 600), (timer) {
+      _animationTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
         setState(() {
-          _currentFrameIndex = (_currentFrameIndex + 1) % _radarFrames.length;
+          _currentTimeOffset += 0.05;
+          if (_currentTimeOffset >= 10.0) {
+            _currentTimeOffset = 0.0;
+          }
         });
       });
     }
   }
 
-  String _formatFrameTime(int timestamp) {
-    final dateTime = DateTime.fromMillisecondsSinceEpoch(timestamp * 1000).toLocal();
-    final hour = dateTime.hour.toString().padLeft(2, '0');
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
+  String _formatOffsetTime(double offset) {
+    if (offset < 0.05) return "Teraz";
+    int hours = offset.floor();
+    int minutes = ((offset - hours) * 60).round();
+    if (hours == 0) return "+${minutes}m";
+    if (minutes == 0) return "+${hours}h";
+    return "+${hours}h ${minutes}m";
+  }
+
+  double _getInterpolatedPrecipProb(double offsetHours) {
+    if (_meteoData == null || _meteoData!.hourlyPrecipProb.isEmpty) return 0.0;
+    final list = _meteoData!.hourlyPrecipProb;
+
+    int baseIndex = offsetHours.floor();
+    int nextIndex = baseIndex + 1;
+
+    if (baseIndex >= list.length - 1) return list.last;
+
+    double progress = offsetHours - baseIndex;
+    return list[baseIndex] + (list[nextIndex] - list[baseIndex]) * progress;
+  }
+
+  Map<String, dynamic> _getWeatherDescription(int code) {
+    switch (code) {
+      case 0:
+        return {'text': 'Jasno / Slnečno', 'icon': Icons.wb_sunny, 'color': Colors.amber};
+      case 1:
+      case 2:
+        return {'text': 'Mierne oblačno', 'icon': Icons.wb_cloudy, 'color': Colors.amberAccent};
+      case 3:
+        return {'text': 'Zamračené', 'icon': Icons.cloud, 'color': Colors.grey};
+      case 45:
+      case 48:
+        return {'text': 'Hmla', 'icon': Icons.dehaze, 'color': Colors.blueGrey};
+      case 51:
+      case 53:
+      case 55:
+        return {'text': 'Mrholenie', 'icon': Icons.grain, 'color': Colors.lightBlue};
+      case 61:
+      case 63:
+      case 65:
+        return {'text': 'Dážď', 'icon': Icons.umbrella, 'color': Colors.blue};
+      case 80:
+      case 81:
+      case 82:
+        return {'text': 'Prehánky', 'icon': Icons.cloudy_snowing, 'color': Colors.blueAccent};
+      case 95:
+      case 96:
+      case 99:
+        return {'text': 'Búrky!', 'icon': Icons.flash_on, 'color': Colors.deepOrange};
+      default:
+        return {'text': 'Oblačno', 'icon': Icons.cloud, 'color': Colors.grey};
+    }
+  }
+
+  int _getCurrentWeatherCode(double offsetHours) {
+    if (_meteoData == null || _meteoData!.hourlyWeatherCodes.isEmpty) return 0;
+    int index = offsetHours.round();
+    if (index >= _meteoData!.hourlyWeatherCodes.length) {
+      return _meteoData!.hourlyWeatherCodes.last;
+    }
+    return _meteoData!.hourlyWeatherCodes[index];
   }
 
   @override
   Widget build(BuildContext context) {
-    final String? currentTile = _radarFrames.isNotEmpty && _currentFrameIndex < _radarFrames.length
-        ? _radarFrames[_currentFrameIndex].path
-        : null;
-
-    final String timeDisplay = _radarFrames.isNotEmpty && _currentFrameIndex < _radarFrames.length
-        ? _formatFrameTime(_radarFrames[_currentFrameIndex].time)
-        : "--:--";
+    final double precipProb = _getInterpolatedPrecipProb(_currentTimeOffset);
+    final int weatherCode = _getCurrentWeatherCode(_currentTimeOffset);
+    final weatherInfo = _getWeatherDescription(weatherCode);
 
     return Scaffold(
       body: SafeArea(
@@ -304,76 +314,112 @@ class _MainScreenState extends State<MainScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
+                      
+                      // WINDY MAPA CEZ WEBVIEW (Plný Zoom)
                       MapContainer(
                         userLocation: LatLng(_lat, _lng),
-                        showRadarOverlay: _showRadar,
-                        currentTilePath: currentTile,
-                        onLocationSelected: (newPoint) {
-                          setState(() {
-                            _lat = newPoint.latitude;
-                            _lng = newPoint.longitude;
-                            _locationName = "Vybrané miesto";
-                          });
-                          _fetchWeatherData();
-                        },
                       ),
-                      
-                      // OVLÁDANIE S PRESNÝM ČASOM SNÍMKY
-                      if (_radarFrames.isNotEmpty)
-                        Container(
-                          margin: const EdgeInsets.only(top: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF1E293B),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              IconButton(
-                                icon: Icon(
-                                  _isPlayingAnimation ? Icons.pause_circle : Icons.play_circle,
-                                  color: Colors.blueAccent,
-                                  size: 32,
-                                ),
-                                onPressed: _toggleAnimation,
+
+                      // PLYNULÁ ČASOVÁ OS
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                _isPlayingAnimation ? Icons.pause_circle : Icons.play_circle,
+                                color: Colors.blueAccent,
+                                size: 32,
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.black26,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  timeDisplay,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
+                              onPressed: _toggleAnimation,
+                            ),
+                            SizedBox(
+                              width: 75,
+                              child: Text(
+                                _formatOffsetTime(_currentTimeOffset),
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                               ),
-                              Expanded(
-                                child: Slider(
-                                  value: _currentFrameIndex.toDouble(),
-                                  min: 0.0,
-                                  max: (_radarFrames.length - 1).toDouble(),
-                                  divisions: _radarFrames.length > 1 ? _radarFrames.length - 1 : 1,
-                                  onChanged: (val) {
-                                    setState(() {
-                                      _currentFrameIndex = val.toInt();
-                                    });
-                                  },
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
-                                onPressed: () {
-                                  _fetchRadarFrames();
+                            ),
+                            Expanded(
+                              child: Slider(
+                                value: _currentTimeOffset,
+                                min: 0.0,
+                                max: 10.0,
+                                onChanged: (val) {
+                                  setState(() {
+                                    _currentTimeOffset = val;
+                                  });
                                 },
                               ),
-                            ],
-                          ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
+                              onPressed: () {
+                                setState(() {
+                                  _currentTimeOffset = 0.0;
+                                });
+                              },
+                            ),
+                          ],
                         ),
+                      ),
+
+                      // PANEL PREDPOVEDE (Prepočítava sa za chodu)
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E293B),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white10),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(weatherInfo['icon'] as IconData, color: weatherInfo['color'] as Color, size: 28),
+                                const SizedBox(width: 8),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Stav', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                                    Text(
+                                      weatherInfo['text'] as String,
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(
+                              height: 30,
+                              child: VerticalDivider(color: Colors.white24, thickness: 1),
+                            ),
+                            Row(
+                              children: [
+                                const Icon(Icons.water_drop, color: Colors.cyanAccent, size: 28),
+                                const SizedBox(width: 8),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Riziko dažďa', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                                    Text(
+                                      '${precipProb.round()} %',
+                                      style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 16),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
 
                       const SizedBox(height: 16),
                       RadarWidget(
