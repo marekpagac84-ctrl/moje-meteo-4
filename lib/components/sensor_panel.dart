@@ -15,215 +15,116 @@ class SensorPanel extends StatelessWidget {
     required this.onResetSensors,
   });
 
+  // Určenie stavu varovania podľa zmeny tlaku za hodinu
+  Map<String, dynamic> _getPressureStatus(double changeRate) {
+    if (changeRate <= -2.0) {
+      return {
+        'title': 'Výstraha pred búrkou!',
+        'desc': 'Prudký pokles tlaku ($changeRate hPa). Blíži sa búrka alebo silný front.',
+        'color': Colors.redAccent,
+        'icon': Icons.warning_amber_rounded,
+      };
+    } else if (changeRate <= -0.8) {
+      return {
+        'title': 'Mierna zmena počasia',
+        'desc': 'Tlak klesá. Zvýšené riziko migrény u meteosenzitívnych ľudí.',
+        'color': Colors.orangeAccent,
+        'icon': Icons.trending_down,
+      };
+    } else if (changeRate >= 0.8) {
+      return {
+        'title': 'Zlepšovanie počasia',
+        'desc': 'Tlak stúpa, očakáva sa jasnejšia obloha.',
+        'color': Colors.greenAccent,
+        'icon': Icons.trending_up,
+      };
+    } else {
+      return {
+        'title': 'Stabilný tlak',
+        'desc': 'Atmosférický tlak je bez výrazných výkyvov.',
+        'color': Colors.blueAccent,
+        'icon': Icons.remove,
+      };
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool isStormWarning = barometer.pressureChangeRate < -1.0;
+    final status = _getPressureStatus(barometer.pressureChangeRate);
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.blueGrey.withOpacity(0.3)),
-        boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'LOCAL BAROMETER / SENSOR',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'monospace',
-                  letterSpacing: 1.0,
-                ),
-              ),
-              Row(
-                children: const [
-                  Icon(Icons.speed, color: Colors.cyanAccent, size: 14),
-                  SizedBox(width: 4),
-                  Text(
-                    'ONLINE',
-                    style: TextStyle(
-                      color: Colors.cyanAccent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          Center(
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF0F172A),
-                border: Border.all(
-                  color: isStormWarning ? Colors.redAccent : Colors.cyanAccent.withOpacity(0.4),
-                  width: 6,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: isStormWarning ? Colors.red.withOpacity(0.3) : Colors.cyan.withOpacity(0.2),
-                    blurRadius: 16,
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    barometer.currentPressure.toStringAsFixed(1),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w300,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                  Text(
-                    'hPa',
-                    style: TextStyle(
-                      color: isStormWarning ? Colors.redAccent : Colors.cyanAccent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2.0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              Column(
-                children: [
-                  const Text('TREND', style: TextStyle(color: Colors.grey, fontSize: 10)),
-                  Text(
-                    '${barometer.pressureChangeRate > 0 ? '+' : ''}${barometer.pressureChangeRate.toStringAsFixed(1)} hPa/h',
-                    style: TextStyle(
-                      color: isStormWarning ? Colors.redAccent : Colors.cyanAccent,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-              Column(
-                children: [
-                  const Text('STATUS', style: TextStyle(color: Colors.grey, fontSize: 10)),
-                  Text(
-                    isStormWarning ? '⚠️ STORM DROP' : 'Calibrated',
-                    style: TextStyle(
-                      color: isStormWarning ? Colors.redAccent : Colors.greenAccent,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F172A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blueGrey.withOpacity(0.2)),
-            ),
-            child: Row(
+    return Card(
+      color: const Color(0xFF1E293B),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Filter výšky:',
-                  style: TextStyle(color: Colors.grey, fontSize: 11),
+                Row(
+                  children: [
+                    Icon(status['icon'] as IconData, color: status['color'] as Color, size: 28),
+                    const SizedBox(width: 8),
+                    Text(
+                      status['title'] as String,
+                      style: TextStyle(
+                        color: status['color'] as Color,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: barometer.isMovingVertically
-                        ? Colors.amber.withOpacity(0.2)
-                        : Colors.green.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: barometer.isMovingVertically ? Colors.amber : Colors.green,
-                    ),
+                if (barometer.isMovingVertically)
+                  Chip(
+                    avatar: const Icon(Icons.height, size: 16, color: Colors.amber),
+                    label: const Text('Detegovaný pohyb', style: TextStyle(fontSize: 10)),
+                    backgroundColor: Colors.amber.withOpacity(0.2),
                   ),
-                  child: Text(
-                    barometer.isMovingVertically ? 'Pohyb (Filter ON)' : 'Stacionárny',
-                    style: TextStyle(
-                      color: barometer.isMovingVertically ? Colors.amber : Colors.greenAccent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              status['desc'] as String,
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            const Divider(height: 24, color: Colors.white12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildMetric(
+                  'Aktuálny tlak',
+                  '${barometer.currentPressure.toStringAsFixed(1)} hPa',
+                  Icons.speed,
+                ),
+                _buildMetric(
+                  'Trend',
+                  '${barometer.pressureChangeRate > 0 ? "+" : ""}${barometer.pressureChangeRate.toStringAsFixed(1)} hPa/h',
+                  Icons.show_chart,
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 14),
-
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.withOpacity(0.2),
-                    foregroundColor: Colors.redAccent,
-                    side: const BorderSide(color: Colors.redAccent),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: onSimulateDrop,
-                  icon: const Icon(Icons.flash_on, size: 14),
-                  label: const Text('-2.5 hPa', style: TextStyle(fontSize: 11)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amber.withOpacity(0.2),
-                    foregroundColor: Colors.amberAccent,
-                    side: const BorderSide(color: Colors.amber),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: onSimulateMotion,
-                  icon: const Icon(Icons.height, size: 14),
-                  label: const Text('Pohyb', style: TextStyle(fontSize: 11)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F172A),
-                  side: BorderSide(color: Colors.blueGrey.withOpacity(0.4)),
-                ),
-                onPressed: onResetSensors,
-                icon: const Icon(Icons.refresh, color: Colors.cyanAccent, size: 16),
-                tooltip: 'Reset',
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildMetric(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: Colors.white38),
+            const SizedBox(width: 4),
+            Text(label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+      ],
     );
   }
 }
