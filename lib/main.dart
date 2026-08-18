@@ -122,7 +122,7 @@ class _MainScreenState extends State<MainScreen> {
     try {
       _accelSubscription = userAccelerometerEventStream().listen((event) {
         final now = DateTime.now();
-        if (now.difference(_lastAccelUpdate).inMilliseconds < 60000) return;
+        if (now.difference(_lastAccelUpdate).inMilliseconds < 1000) return;
 
         final double totalMotion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMovingNow = totalMotion > 3.0;
@@ -190,9 +190,9 @@ class _MainScreenState extends State<MainScreen> {
       setState(() {
         _isPlayingAnimation = true;
       });
-      _animationTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      _animationTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
         setState(() {
-          _currentTimeOffset += 0.05;
+          _currentTimeOffset += 0.25;
           if (_currentTimeOffset >= 10.0) {
             _currentTimeOffset = 0.0;
           }
@@ -316,6 +316,7 @@ class _MainScreenState extends State<MainScreen> {
                       MapContainer(
                         userLocation: LatLng(_lat, _lng),
                         showRadarOverlay: _showRadar,
+                        timeOffsetHours: _currentTimeOffset,
                         onLocationSelected: (newPoint) {
                           setState(() {
                             _lat = newPoint.latitude;
