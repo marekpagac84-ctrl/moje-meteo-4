@@ -41,23 +41,20 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  bool _showRadar = false;
+  bool _showRadar = true;
   bool _isLoadingMeteo = false;
 
   MeteoApiData? _meteoData;
 
-  // Predvolené súradnice (Nové Mesto nad Váhom)
   double _lat = 48.7576;
   double _lng = 17.8309;
   String _locationName = 'Nové Mesto nad Váhom';
 
-  // Oblačnosť a plynulá animácia
-  List<double> _cloudForecast = List.filled(12, 0.0);
-  double _currentTimeOffset = 0.0; 
+  List<String> _radarFrames = [];
+  int _currentFrameIndex = 0;
   bool _isPlayingAnimation = false;
   Timer? _animationTimer;
 
-  // Stavy pre Barometer
   BarometerState _barometerState = BarometerState(
     currentPressure: 1013.25,
     pressureChangeRate: 0.0,
@@ -75,6 +72,7 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     _initGpsLocation();
     _initSensors();
+    _fetchRadarFrames();
   }
 
   @override
@@ -84,7 +82,6 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
-  // --- 1. ZÍSKANIE GPS POLOHY ---
   Future<void> _initGpsLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -123,12 +120,11 @@ class _MainScreenState extends State<MainScreen> {
     _fetchWeatherData();
   }
 
-  // --- 2. HARDVÉROVÉ SENZORY (BEZ TRASENIA) ---
   void _initSensors() {
     try {
       _accelSubscription = userAccelerometerEventStream().listen((event) {
         final now = DateTime.now();
-        if (now.difference(_lastAccelUpdate).inMilliseconds < 500) return;
+        if (now.difference(_lastAccelUpdate).inMilliseconds < 60000) return;
 
         final double totalMotion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMovingNow = totalMotion > 3.0;
@@ -145,7 +141,41 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  // --- 3. STIAHNUTIE METEO DÁT + OBLAČNOSŤ ---
+  Future<void> _fetchRadarFrames() async {
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.rainviewer.com/public/weather-maps.json'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        List<String> paths = [];
+
+        if (data.containsKey('radar')) {
+          if (data['radar'].containsKey('past')) {
+            for (var item in data['radar']['past']) {
+              paths.add(item['path']);
+            }
+          }
+          if (data['radar'].containsKey('nowcast')) {
+            for (var item in data['radar']['nowcast']) {
+              paths.add(item['path']);
+            }
+          }
+        }
+
+        setState(() {
+          _radarFrames = paths;
+          if (_radarFrames.isNotEmpty) {
+            _currentFrameIndex = _radarFrames.length ~/ 2;
+          }
+        });
+      }
+    } catch (e) {
+      print('Chyba načítania radarových snímok: $e');
+    }
+  }
+
   Future<void> _fetchWeatherData() async {
     setState(() {
       _isLoadingMeteo = true;
@@ -153,7 +183,7 @@ class _MainScreenState extends State<MainScreen> {
 
     try {
       final url = Uri.parse(
-        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation,surface_pressure,cloud_cover&forecast_hours=12',
+        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation,surface_pressure&forecast_hours=12',
       );
 
       final response = await http.get(url);
@@ -166,21 +196,12 @@ class _MainScreenState extends State<MainScreen> {
           seaLevelP = (data['current_weather']['pressure'] as num).toDouble();
         }
 
-        List<double> clouds = [];
-        if (data.containsKey('hourly') && data['hourly'].containsKey('cloud_cover')) {
-          final List rawClouds = data['hourly']['cloud_cover'];
-          clouds = rawClouds.take(11).map((e) => (e as num).toDouble()).toList();
-        }
-
         setState(() {
           _meteoData = MeteoApiData.fromJson(data);
           _barometerState = _barometerState.copyWith(
             basePressure: seaLevelP,
             currentPressure: seaLevelP,
           );
-          if (clouds.isNotEmpty) {
-            _cloudForecast = clouds;
-          }
           _isLoadingMeteo = false;
         });
       } else {
@@ -196,26 +217,9 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  // --- 4. LINEÁRNA INTERPOLÁCIA PRE OBLAČNOSŤ ---
-  double _getInterpolatedCloudCover(double offsetHours) {
-    if (_cloudForecast.isEmpty) return 0.0;
-
-    int baseIndex = offsetHours.floor();
-    int nextIndex = baseIndex + 1;
-
-    if (baseIndex >= _cloudForecast.length - 1) {
-      return _cloudForecast.last;
-    }
-
-    double progress = offsetHours - baseIndex;
-    double startVal = _cloudForecast[baseIndex];
-    double endVal = _cloudForecast[nextIndex];
-
-    return startVal + (endVal - startVal) * progress;
-  }
-
-  // --- 5. PREHRÁVAČ ANIMÁCIE ---
   void _toggleAnimation() {
+    if (_radarFrames.isEmpty) return;
+
     if (_isPlayingAnimation) {
       _animationTimer?.cancel();
       setState(() {
@@ -225,29 +229,19 @@ class _MainScreenState extends State<MainScreen> {
       setState(() {
         _isPlayingAnimation = true;
       });
-      _animationTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      _animationTimer = Timer.periodic(const Duration(milliseconds: 600), (timer) {
         setState(() {
-          _currentTimeOffset += 0.05;
-          if (_currentTimeOffset >= 10.0) {
-            _currentTimeOffset = 0.0;
-          }
+          _currentFrameIndex = (_currentFrameIndex + 1) % _radarFrames.length;
         });
       });
     }
   }
 
-  String _formatOffsetTime(double offset) {
-    if (offset < 0.05) return "Teraz";
-    int hours = offset.floor();
-    int minutes = ((offset - hours) * 60).round();
-    if (hours == 0) return "+${minutes}m";
-    if (minutes == 0) return "+${hours}h";
-    return "+${hours}h ${minutes}m";
-  }
-
   @override
   Widget build(BuildContext context) {
-    final double currentCloudVal = _getInterpolatedCloudCover(_currentTimeOffset);
+    final String? currentTile = _radarFrames.isNotEmpty && _currentFrameIndex < _radarFrames.length
+        ? _radarFrames[_currentFrameIndex]
+        : null;
 
     return Scaffold(
       body: SafeArea(
@@ -291,12 +285,10 @@ class _MainScreenState extends State<MainScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      
-                      // MAPA
                       MapContainer(
                         userLocation: LatLng(_lat, _lng),
                         showRadarOverlay: _showRadar,
-                        cloudCoverPercent: currentCloudVal,
+                        currentTilePath: currentTile,
                         onLocationSelected: (newPoint) {
                           setState(() {
                             _lat = newPoint.latitude;
@@ -306,56 +298,50 @@ class _MainScreenState extends State<MainScreen> {
                           _fetchWeatherData();
                         },
                       ),
-
-                      // PLYNULÝ PREHRÁVAČ OBLAČNOSTI (10 HODÍN)
-                      Container(
-                        margin: const EdgeInsets.only(top: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              icon: Icon(
-                                _isPlayingAnimation ? Icons.pause_circle : Icons.play_circle,
-                                color: Colors.blueAccent,
-                                size: 32,
+                      if (_radarFrames.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E293B),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  _isPlayingAnimation ? Icons.pause_circle : Icons.play_circle,
+                                  color: Colors.blueAccent,
+                                  size: 32,
+                                ),
+                                onPressed: _toggleAnimation,
                               ),
-                              onPressed: _toggleAnimation,
-                            ),
-                            SizedBox(
-                              width: 75,
-                              child: Text(
-                                _formatOffsetTime(_currentTimeOffset),
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                              const Text(
+                                'Pohyb mrakov',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                               ),
-                            ),
-                            Expanded(
-                              child: Slider(
-                                value: _currentTimeOffset,
-                                min: 0.0,
-                                max: 10.0,
-                                onChanged: (val) {
-                                  setState(() {
-                                    _currentTimeOffset = val;
-                                  });
+                              Expanded(
+                                child: Slider(
+                                  value: _currentFrameIndex.toDouble(),
+                                  min: 0.0,
+                                  max: (_radarFrames.length - 1).toDouble(),
+                                  divisions: _radarFrames.length > 1 ? _radarFrames.length - 1 : 1,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _currentFrameIndex = val.toInt();
+                                    });
+                                  },
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
+                                onPressed: () {
+                                  _fetchRadarFrames();
                                 },
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
-                              onPressed: () {
-                                setState(() {
-                                  _currentTimeOffset = 0.0;
-                                });
-                              },
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-
                       const SizedBox(height: 16),
                       RadarWidget(
                         meteoData: _meteoData,
