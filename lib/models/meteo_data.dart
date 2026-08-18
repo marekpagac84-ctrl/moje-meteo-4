@@ -1,151 +1,43 @@
-import 'dart:math';
-
-class BarometerState {
-  final double currentPressure;
-  final double pressureChangeRate;
-  final bool isMovingVertically;
-  final List<double> pressureHistory;
-  final double estimatedAltitude; // Odhadovaná nadmorská výška v metroch
-  final double basePressure;      // Referenčný tlak na úrovni mora / východiskový tlak
-
-  BarometerState({
-    required this.currentPressure,
-    required this.pressureChangeRate,
-    required this.isMovingVertically,
-    required this.pressureHistory,
-    this.estimatedAltitude = 0.0,
-    this.basePressure = 1013.25,
-  });
-
-  BarometerState copyWith({
-    double? currentPressure,
-    double? pressureChangeRate,
-    bool? isMovingVertically,
-    List<double>? pressureHistory,
-    double? estimatedAltitude,
-    double? basePressure,
-  }) {
-    return BarometerState(
-      currentPressure: currentPressure ?? this.currentPressure,
-      pressureChangeRate: pressureChangeRate ?? this.pressureChangeRate,
-      isMovingVertically: isMovingVertically ?? this.isMovingVertically,
-      pressureHistory: pressureHistory ?? List.from(this.pressureHistory),
-      estimatedAltitude: estimatedAltitude ?? this.estimatedAltitude,
-      basePressure: basePressure ?? this.basePressure,
-    );
-  }
-
-  // Medzinárodný barometrický vzorec pre výpočet nadmorskej výšky
-  static double calculateAltitude(double pressure, double baseP) {
-    if (pressure <= 0 || baseP <= 0) return 0.0;
-    return 44330.0 * (1.0 - pow(pressure / baseP, 1.0 / 5.255));
-  }
-}
-
 class MeteoApiData {
-  final double temperature;
-  final double precipitation;
-  final double windSpeed;
-  final int weatherCode;
-  final bool isRain;
-  final String lastUpdated;
-  final String statusMessage;
+  final double currentTemp;
+  final double currentPressure;
+  final List<double> hourlyClouds;
+  final List<double> hourlyPrecipProb;
+  final List<int> hourlyWeatherCodes;
 
   MeteoApiData({
-    required this.temperature,
-    required this.precipitation,
-    required this.windSpeed,
-    required this.weatherCode,
-    required this.isRain,
-    required this.lastUpdated,
-    required this.statusMessage,
+    required this.currentTemp,
+    required this.currentPressure,
+    required this.hourlyClouds,
+    required this.hourlyPrecipProb,
+    required this.hourlyWeatherCodes,
   });
 
   factory MeteoApiData.fromJson(Map<String, dynamic> json) {
     final current = json['current_weather'] ?? {};
-    final code = (current['weathercode'] as num?)?.toInt() ?? 0;
-    final temp = (current['temperature'] as num?)?.toDouble() ?? 0.0;
-    final wind = (current['windspeed'] as num?)?.toDouble() ?? 0.0;
+    final hourly = json['hourly'] ?? {};
 
-    final rainVal = (json['hourly']?['precipitation']?[0] as num?)?.toDouble() ?? 0.0;
+    List<double> clouds = [];
+    if (hourly.containsKey('cloud_cover')) {
+      clouds = (hourly['cloud_cover'] as List).map((e) => (e as num).toDouble()).toList();
+    }
 
-    final now = DateTime.now();
-    final timeStr = "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+    List<double> precip = [];
+    if (hourly.containsKey('precipitation_probability')) {
+      precip = (hourly['precipitation_probability'] as List).map((e) => (e as num).toDouble()).toList();
+    }
+
+    List<int> codes = [];
+    if (hourly.containsKey('weathercode')) {
+      codes = (hourly['weathercode'] as List).map((e) => (e as num).toInt()).toList();
+    }
 
     return MeteoApiData(
-      temperature: temp,
-      precipitation: rainVal,
-      windSpeed: wind,
-      weatherCode: code,
-      isRain: rainVal > 0 || [51, 53, 55, 61, 63, 65, 80, 81, 82].contains(code),
-      lastUpdated: timeStr,
-      statusMessage: _getWeatherDescription(code),
+      currentTemp: (current['temperature'] as num?)?.toDouble() ?? 0.0,
+      currentPressure: (current['pressure'] as num?)?.toDouble() ?? 1013.25,
+      hourlyClouds: clouds,
+      hourlyPrecipProb: precip,
+      hourlyWeatherCodes: codes,
     );
   }
-
-  static String _getWeatherDescription(int code) {
-    switch (code) {
-      case 0:
-        return 'Jasno';
-      case 1:
-      case 2:
-      case 3:
-        return 'Čiastočne oblačno';
-      case 45:
-      case 48:
-        return 'Hmla';
-      case 51:
-      case 53:
-      case 55:
-        return 'Mrholenie';
-      case 61:
-      case 63:
-      case 65:
-        return 'Dážď';
-      case 71:
-      case 73:
-      case 75:
-        return 'Sneženie';
-      case 80:
-      case 81:
-      case 82:
-        return 'Prehánky';
-      case 95:
-      case 96:
-      case 99:
-        return 'Búrka';
-      default:
-        return 'Neznáme počasie';
-    }
-  }
-}
-
-class PresetLocation {
-  final String name;
-  final double lat;
-  final double lng;
-
-  const PresetLocation({
-    required this.name,
-    required this.lat,
-    required this.lng,
-  });
-}
-
-class CommunityMarker {
-  final String id;
-  final double latitude;
-  final double longitude;
-  final double pressureDrop;
-  final String timestamp;
-  final String label;
-
-  CommunityMarker({
-    required this.id,
-    required this.latitude,
-    required this.longitude,
-    required this.pressureDrop,
-    required this.timestamp,
-    required this.label,
-  });
 }
