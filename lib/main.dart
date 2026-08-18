@@ -51,7 +51,7 @@ class _MainScreenState extends State<MainScreen> {
   double _lng = 17.8309;
   String _locationName = 'Nové Mesto nad Váhom';
 
-  // Stavy pre Barometer a Výškomer
+  // Stavy pre Barometer
   BarometerState _barometerState = BarometerState(
     currentPressure: 1013.25,
     pressureChangeRate: 0.0,
@@ -62,7 +62,6 @@ class _MainScreenState extends State<MainScreen> {
   );
 
   StreamSubscription? _accelSubscription;
-  StreamSubscription? _barometerSubscription;
 
   @override
   void initState() {
@@ -74,7 +73,6 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _accelSubscription?.cancel();
-    _barometerSubscription?.cancel();
     super.dispose();
   }
 
@@ -117,9 +115,8 @@ class _MainScreenState extends State<MainScreen> {
     _fetchWeatherData();
   }
 
-  // --- 2. HARDVÉROVÉ SENZORY (BAROMETER + AKCELEROMETER) ---
+  // --- 2. BEZPEČNÁ INICIALIZÁCIA SENZOROV ---
   void _initSensors() {
-    // Sledovanie akcelerometra pre detekciu pohybu (poschodia / výťah)
     try {
       _accelSubscription = userAccelerometerEventStream().listen((event) {
         final double totalMotion = event.x.abs() + event.y.abs() + event.z.abs();
@@ -132,46 +129,7 @@ class _MainScreenState extends State<MainScreen> {
         }
       });
     } catch (e) {
-      print('Akcelerometer nedostupný: $e');
-    }
-
-    // Čítanie barometra a prepočet nadmorskej výšky
-    try {
-      _barometerSubscription = barometerEventStream().listen(
-        (event) {
-          final double newPressure = event.pressure;
-
-          setState(() {
-            final updatedHistory = List<double>.from(_barometerState.pressureHistory);
-            updatedHistory.add(newPressure);
-            if (updatedHistory.length > 20) {
-              updatedHistory.removeAt(0);
-            }
-
-            // Ak sa používateľ NIE HÝBE, zmenu tlaku pripíšeme počasiu (trend)
-            double changeRate = _barometerState.pressureChangeRate;
-            if (!_barometerState.isMovingVertically && updatedHistory.length > 1) {
-              changeRate = updatedHistory.last - updatedHistory.first;
-            }
-
-            // Výpočet aktuálnej výšky z tlaku
-            final double altitude = BarometerState.calculateAltitude(
-              newPressure,
-              _barometerState.basePressure,
-            );
-
-            _barometerState = _barometerState.copyWith(
-              currentPressure: newPressure,
-              pressureChangeRate: changeRate,
-              pressureHistory: updatedHistory,
-              estimatedAltitude: altitude,
-            );
-          });
-        },
-        onError: (error) => print('Barometer chyba: $error'),
-      );
-    } catch (e) {
-      print('Barometer nie je podporovaný: $e');
+      print('Senzory nedostupné: $e');
     }
   }
 
@@ -183,23 +141,15 @@ class _MainScreenState extends State<MainScreen> {
 
     try {
       final url = Uri.parse(
-        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation,surface_pressure',
+        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation',
       );
 
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
-        
-        // Ak API vráti tlak na hladine mora, nastavíme ho ako referenčný pre výškomer
-        double seaLevelP = 1013.25;
-        if (data.containsKey('current_weather') && data['current_weather'].containsKey('pressure')) {
-          seaLevelP = (data['current_weather']['pressure'] as num).toDouble();
-        }
-
         setState(() {
           _meteoData = MeteoApiData.fromJson(data);
-          _barometerState = _barometerState.copyWith(basePressure: seaLevelP);
           _isLoadingMeteo = false;
         });
       } else {
@@ -208,7 +158,7 @@ class _MainScreenState extends State<MainScreen> {
         });
       }
     } catch (e) {
-      print('Chyba meteo API: $e');
+      print('Chyba pri sťahovaní počasia: $e');
       setState(() {
         _isLoadingMeteo = false;
       });
@@ -250,14 +200,7 @@ class _MainScreenState extends State<MainScreen> {
                         barometer: _barometerState,
                         onSimulateDrop: () {},
                         onSimulateMotion: () {},
-                        onResetSensors: () {
-                          // Calibrate base pressure to current
-                          setState(() {
-                            _barometerState = _barometerState.copyWith(
-                              basePressure: _barometerState.currentPressure,
-                            );
-                          });
-                        },
+                        onResetSensors: () {},
                       ),
                       const SizedBox(height: 16),
                       MapContainer(
