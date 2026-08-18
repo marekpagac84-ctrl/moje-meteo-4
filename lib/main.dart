@@ -50,7 +50,6 @@ class _MainScreenState extends State<MainScreen> {
   double _lng = 17.8309;
   String _locationName = 'Nové Mesto nad Váhom';
 
-  // Časový posun (0.0 = Teraz, 10.0 = o 10 hodín)
   double _currentTimeOffset = 0.0;
   bool _isPlayingAnimation = false;
   Timer? _animationTimer;
@@ -314,13 +313,18 @@ class _MainScreenState extends State<MainScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      
-                      // WINDY MAPA CEZ WEBVIEW (Plný Zoom)
                       MapContainer(
                         userLocation: LatLng(_lat, _lng),
+                        showRadarOverlay: _showRadar,
+                        onLocationSelected: (newPoint) {
+                          setState(() {
+                            _lat = newPoint.latitude;
+                            _lng = newPoint.longitude;
+                            _locationName = "Vybrané miesto";
+                          });
+                          _fetchWeatherData();
+                        },
                       ),
-
-                      // PLYNULÁ ČASOVÁ OS
                       Container(
                         margin: const EdgeInsets.only(top: 8),
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -368,8 +372,6 @@ class _MainScreenState extends State<MainScreen> {
                           ],
                         ),
                       ),
-
-                      // PANEL PREDPOVEDE (Prepočítava sa za chodu)
                       Container(
                         margin: const EdgeInsets.only(top: 8),
                         padding: const EdgeInsets.all(12),
@@ -420,7 +422,6 @@ class _MainScreenState extends State<MainScreen> {
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 16),
                       RadarWidget(
                         meteoData: _meteoData,
