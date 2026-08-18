@@ -62,6 +62,7 @@ class _MainScreenState extends State<MainScreen> {
   );
 
   StreamSubscription? _accelSubscription;
+  StreamSubscription? _barometerSubscription;
 
   @override
   void initState() {
@@ -73,6 +74,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _accelSubscription?.cancel();
+    _barometerSubscription?.cancel();
     super.dispose();
   }
 
@@ -115,21 +117,59 @@ class _MainScreenState extends State<MainScreen> {
     _fetchWeatherData();
   }
 
-  // --- 2. BEZPEČNÁ INICIALIZÁCIA SENZOROV ---
+  // --- 2. HARDVÉROVÉ SENZORY (BAROMETER + AKCELEROMETER) ---
   void _initSensors() {
+    // Akcelerometer - sledovanie pohybu bez zbytočného re-renderingu
     try {
       _accelSubscription = userAccelerometerEventStream().listen((event) {
         final double totalMotion = event.x.abs() + event.y.abs() + event.z.abs();
-        final bool isMoving = totalMotion > 1.5;
+        final bool isMovingNow = totalMotion > 2.5;
 
-        if (isMoving != _barometerState.isMovingVertically) {
+        if (isMovingNow != _barometerState.isMovingVertically) {
           setState(() {
-            _barometerState = _barometerState.copyWith(isMovingVertically: isMoving);
+            _barometerState = _barometerState.copyWith(isMovingVertically: isMovingNow);
           });
         }
       });
     } catch (e) {
-      print('Senzory nedostupné: $e');
+      print('Akcelerometer nie je dostupný: $e');
+    }
+
+    // Barometer - čítanie tlaku a výpočet výšky
+    try {
+      _barometerSubscription = barometerEventStream().listen(
+        (event) {
+          final double newPressure = event.pressure;
+
+          setState(() {
+            final updatedHistory = List<double>.from(_barometerState.pressureHistory);
+            updatedHistory.add(newPressure);
+            if (updatedHistory.length > 20) {
+              updatedHistory.removeAt(0);
+            }
+
+            double changeRate = _barometerState.pressureChangeRate;
+            if (!_barometerState.isMovingVertically && updatedHistory.length > 1) {
+              changeRate = updatedHistory.last - updatedHistory.first;
+            }
+
+            final double altitude = BarometerState.calculateAltitude(
+              newPressure,
+              _barometerState.basePressure,
+            );
+
+            _barometerState = _barometerState.copyWith(
+              currentPressure: newPressure,
+              pressureChangeRate: changeRate,
+              pressureHistory: updatedHistory,
+              estimatedAltitude: altitude,
+            );
+          });
+        },
+        onError: (error) => print('Barometer chyba: $error'),
+      );
+    } catch (e) {
+      print('Barometer nie je podporovaný: $e');
     }
   }
 
@@ -141,15 +181,22 @@ class _MainScreenState extends State<MainScreen> {
 
     try {
       final url = Uri.parse(
-        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation',
+        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation,surface_pressure',
       );
 
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
+
+        double seaLevelP = 1013.25;
+        if (data.containsKey('current_weather') && data['current_weather'].containsKey('pressure')) {
+          seaLevelP = (data['current_weather']['pressure'] as num).toDouble();
+        }
+
         setState(() {
           _meteoData = MeteoApiData.fromJson(data);
+          _barometerState = _barometerState.copyWith(basePressure: seaLevelP);
           _isLoadingMeteo = false;
         });
       } else {
@@ -158,7 +205,7 @@ class _MainScreenState extends State<MainScreen> {
         });
       }
     } catch (e) {
-      print('Chyba pri sťahovaní počasia: $e');
+      print('Chyba meteo API: $e');
       setState(() {
         _isLoadingMeteo = false;
       });
@@ -200,7 +247,13 @@ class _MainScreenState extends State<MainScreen> {
                         barometer: _barometerState,
                         onSimulateDrop: () {},
                         onSimulateMotion: () {},
-                        onResetSensors: () {},
+                        onResetSensors: () {
+                          setState(() {
+                            _barometerState = _barometerState.copyWith(
+                              basePressure: _barometerState.currentPressure,
+                            );
+                          });
+                        },
                       ),
                       const SizedBox(height: 16),
                       MapContainer(
