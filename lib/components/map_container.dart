@@ -27,24 +27,36 @@ class MapContainer extends StatelessWidget {
             FlutterMap(
               options: MapOptions(
                 initialCenter: userLocation,
-                initialZoom: 8.0,
-                maxZoom: 10.0,
-                minZoom: 3.0,
+                initialZoom: 6.0,
+                maxZoom: 7.0, // RainViewer API podporuje zoom do max 7.0
+                minZoom: 2.0,
                 onTap: (tapPosition, point) {
                   onLocationSelected(point);
                 },
               ),
               children: [
+                // Základná mapa
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.example.meteoapp',
                 ),
+                // Vrstva oblačnosti
                 if (showRadarOverlay)
                   Opacity(
-                    opacity: 0.65,
+                    opacity: 0.5,
                     child: TileLayer(
                       urlTemplate:
-                          'https://tilecache.rainviewer.com/v2/radar/nowcast/{z}/{x}/{y}/2/1_1.png',
+                          'https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=2081d19830588661642ef9326e0e29b1',
+                      userAgentPackageName: 'com.example.meteoapp',
+                    ),
+                  ),
+                // Vrstva radarových zrážok (RainViewer)
+                if (showRadarOverlay)
+                  Opacity(
+                    opacity: 0.7,
+                    child: TileLayer(
+                      urlTemplate:
+                          'https://tilecache.rainviewer.com/v2/radar/nowcast/256/{z}/{x}/{y}/2/1_1.png',
                       userAgentPackageName: 'com.example.meteoapp',
                     ),
                   ),
