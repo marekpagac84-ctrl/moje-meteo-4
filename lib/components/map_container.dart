@@ -6,22 +6,20 @@ class MapContainer extends StatelessWidget {
   final LatLng userLocation;
   final bool showRadarOverlay;
   final Function(LatLng) onLocationSelected;
-  final double cloudCoverPercent;
+  final String? currentTilePath;
 
   const MapContainer({
     super.key,
     required this.userLocation,
     required this.showRadarOverlay,
     required this.onLocationSelected,
-    this.cloudCoverPercent = 0.0,
+    this.currentTilePath,
   });
 
   @override
   Widget build(BuildContext context) {
-    final double cloudOpacity = (cloudCoverPercent / 100.0) * 0.55;
-
     return SizedBox(
-      height: 350,
+      height: 380,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Stack(
@@ -39,11 +37,11 @@ class MapContainer extends StatelessWidget {
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.example.meteo_app',
                 ),
-                if (showRadarOverlay)
+                if (showRadarOverlay && currentTilePath != null)
                   TileLayer(
-                    urlTemplate: 'https://tilecache.rainviewer.com/v2/radar/now/256/{z}/{x}/{y}/2/1_1.png',
+                    urlTemplate: 'https://tilecache.rainviewer.com$currentTilePath/256/{z}/{x}/{y}/2/1_1.png',
                     userAgentPackageName: 'com.example.meteo_app',
-                    tileBuilder: (context, child, tile) => Opacity(opacity: 0.6, child: child),
+                    tileBuilder: (context, child, tile) => Opacity(opacity: 0.7, child: child),
                   ),
                 MarkerLayer(
                   markers: [
@@ -55,33 +53,26 @@ class MapContainer extends StatelessWidget {
                 ),
               ],
             ),
-            
-            // Plynulá vrstva oblačnosti
-            if (cloudCoverPercent > 0)
-              IgnorePointer(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 100),
-                  color: Colors.blueGrey.withOpacity(cloudOpacity),
-                ),
-              ),
-
-            // Ukazovateľ aktuálnej oblačnosti na mape
             Positioned(
               top: 12,
               right: 12,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
+                  color: Colors.black.withOpacity(0.75),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.cloud, color: Colors.white70, size: 16),
+                    Icon(
+                      showRadarOverlay ? Icons.cloud_sync : Icons.cloud_off,
+                      color: showRadarOverlay ? Colors.lightBlueAccent : Colors.white54,
+                      size: 16,
+                    ),
                     const SizedBox(width: 6),
                     Text(
-                      'Oblačnosť: ${cloudCoverPercent.round()}%',
+                      showRadarOverlay ? 'Radar aktívny' : 'Radar vypnutý',
                       style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ],
