@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 class MapContainer extends StatelessWidget {
@@ -16,36 +15,35 @@ class MapContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String staticMapUrl =
+        'https://staticmap.openstreetmap.de/staticmap.php?center=${userLocation.latitude},${userLocation.longitude}&zoom=10&size=600x380&maptype=mapnik&markers=${userLocation.latitude},${userLocation.longitude},red-pushpin';
+
     return SizedBox(
       height: 380,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Stack(
           children: [
-            FlutterMap(
-              options: MapOptions(
-                initialCenter: userLocation,
-                initialZoom: 7.0,
-                maxZoom: 10.0,
-                minZoom: 3.0,
-                onTap: (tapPosition, point) {
-                  onLocationSelected(point);
-                },
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.meteo_app',
-                ),
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: userLocation,
-                      child: const Icon(Icons.location_pin, color: Colors.red, size: 36),
+            Image.network(
+              staticMapUrl,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  color: const Color(0xFF1E293B),
+                  child: const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.map, color: Colors.white54, size: 48),
+                        SizedBox(height: 8),
+                        Text('Mapa sa načítava...', style: TextStyle(color: Colors.white54)),
+                      ],
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                );
+              },
             ),
             Positioned(
               top: 12,
@@ -59,10 +57,10 @@ class MapContainer extends StatelessWidget {
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.map, color: Colors.lightBlueAccent, size: 16),
+                    Icon(Icons.location_on, color: Colors.redAccent, size: 16),
                     SizedBox(width: 6),
                     Text(
-                      'Meteo Mapa',
+                      'Poloha',
                       style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ],
