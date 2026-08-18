@@ -28,6 +28,8 @@ class MapContainer extends StatelessWidget {
               options: MapOptions(
                 initialCenter: userLocation,
                 initialZoom: 7.0,
+                maxZoom: 10.0, // Zamedzí chybe "Zoom not supported" od RainViewer
+                minZoom: 3.0,
                 onTap: (tapPosition, point) {
                   onLocationSelected(point);
                 },
@@ -41,7 +43,7 @@ class MapContainer extends StatelessWidget {
                   TileLayer(
                     urlTemplate: 'https://tilecache.rainviewer.com$currentTilePath/256/{z}/{x}/{y}/2/1_1.png',
                     userAgentPackageName: 'com.example.meteo_app',
-                    tileBuilder: (context, child, tile) => Opacity(opacity: 0.7, child: child),
+                    tileBuilder: (context, child, tile) => Opacity(opacity: 0.65, child: child),
                   ),
                 MarkerLayer(
                   markers: [
