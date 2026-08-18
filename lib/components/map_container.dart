@@ -6,6 +6,7 @@ class MapContainer extends StatelessWidget {
   final LatLng userLocation;
   final bool showRadarOverlay;
   final double timeOffsetHours;
+  final List<int> radarTimestamps;
   final Function(LatLng) onLocationSelected;
 
   const MapContainer({
@@ -13,11 +14,21 @@ class MapContainer extends StatelessWidget {
     required this.userLocation,
     required this.showRadarOverlay,
     required this.timeOffsetHours,
+    required this.radarTimestamps,
     required this.onLocationSelected,
   });
 
   @override
   Widget build(BuildContext context) {
+    int timestamp = 0;
+    if (radarTimestamps.isNotEmpty) {
+      int index = timeOffsetHours.round();
+      if (index >= radarTimestamps.length) {
+        index = radarTimestamps.length - 1;
+      }
+      timestamp = radarTimestamps[index];
+    }
+
     return SizedBox(
       height: 380,
       child: ClipRRect(
@@ -27,37 +38,26 @@ class MapContainer extends StatelessWidget {
             FlutterMap(
               options: MapOptions(
                 initialCenter: userLocation,
-                initialZoom: 6.0,
-                maxZoom: 7.0, // RainViewer API podporuje zoom do max 7.0
-                minZoom: 2.0,
+                initialZoom: 9.5,
+                maxZoom: 12.0,
+                minZoom: 3.0,
                 onTap: (tapPosition, point) {
                   onLocationSelected(point);
                 },
               ),
               children: [
-                // Základná mapa
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.meteoapp',
+                  userAgentPackageName: 'sk.meteoapp.app',
                 ),
-                // Vrstva oblačnosti
-                if (showRadarOverlay)
+                if (showRadarOverlay && timestamp > 0)
                   Opacity(
-                    opacity: 0.5,
+                    opacity: 0.75,
                     child: TileLayer(
+                      key: ValueKey(timestamp),
                       urlTemplate:
-                          'https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=2081d19830588661642ef9326e0e29b1',
-                      userAgentPackageName: 'com.example.meteoapp',
-                    ),
-                  ),
-                // Vrstva radarových zrážok (RainViewer)
-                if (showRadarOverlay)
-                  Opacity(
-                    opacity: 0.7,
-                    child: TileLayer(
-                      urlTemplate:
-                          'https://tilecache.rainviewer.com/v2/radar/nowcast/256/{z}/{x}/{y}/2/1_1.png',
-                      userAgentPackageName: 'com.example.meteoapp',
+                          'https://tilecache.rainviewer.com/v2/radar/$timestamp/256/{z}/{x}/{y}/2/1_1.png',
+                      userAgentPackageName: 'sk.meteoapp.app',
                     ),
                   ),
                 MarkerLayer(
@@ -97,7 +97,7 @@ class MapContainer extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      showRadarOverlay ? 'Radar & Oblaky' : 'Mapa',
+                      showRadarOverlay ? 'Radar & Zrážky' : 'Mapa',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
