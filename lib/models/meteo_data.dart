@@ -1,14 +1,20 @@
+import 'dart:math';
+
 class BarometerState {
   final double currentPressure;
   final double pressureChangeRate;
   final bool isMovingVertically;
   final List<double> pressureHistory;
+  final double estimatedAltitude; // Odhadovaná nadmorská výška v metroch
+  final double basePressure;      // Referenčný tlak na úrovni mora / východiskový tlak
 
   BarometerState({
     required this.currentPressure,
     required this.pressureChangeRate,
     required this.isMovingVertically,
     required this.pressureHistory,
+    this.estimatedAltitude = 0.0,
+    this.basePressure = 1013.25,
   });
 
   BarometerState copyWith({
@@ -16,13 +22,23 @@ class BarometerState {
     double? pressureChangeRate,
     bool? isMovingVertically,
     List<double>? pressureHistory,
+    double? estimatedAltitude,
+    double? basePressure,
   }) {
     return BarometerState(
       currentPressure: currentPressure ?? this.currentPressure,
       pressureChangeRate: pressureChangeRate ?? this.pressureChangeRate,
       isMovingVertically: isMovingVertically ?? this.isMovingVertically,
       pressureHistory: pressureHistory ?? List.from(this.pressureHistory),
+      estimatedAltitude: estimatedAltitude ?? this.estimatedAltitude,
+      basePressure: basePressure ?? this.basePressure,
     );
+  }
+
+  // Medzinárodný barometrický vzorec pre výpočet nadmorskej výšky
+  static double calculateAltitude(double pressure, double baseP) {
+    if (pressure <= 0 || baseP <= 0) return 0.0;
+    return 44330.0 * (1.0 - pow(pressure / baseP, 1.0 / 5.255));
   }
 }
 
