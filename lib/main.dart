@@ -51,41 +51,42 @@ class _MainScreenState extends State<MainScreen> {
   double _lng = 17.8309;
   String _locationName = 'Nové Mesto nad Váhom';
 
-  // Stavy pre Barometer
+  // Stavy pre Barometer a Výškomer
   BarometerState _barometerState = BarometerState(
     currentPressure: 1013.25,
     pressureChangeRate: 0.0,
     isMovingVertically: false,
     pressureHistory: [],
+    estimatedAltitude: 0.0,
+    basePressure: 1013.25,
   );
 
+  StreamSubscription? _accelSubscription;
   StreamSubscription? _barometerSubscription;
 
   @override
   void initState() {
     super.initState();
     _initGpsLocation();
-    _initBarometerSensor();
+    _initSensors();
   }
 
   @override
   void dispose() {
+    _accelSubscription?.cancel();
     _barometerSubscription?.cancel();
     super.dispose();
   }
 
   // --- 1. ZÍSKANIE GPS POLOHY ---
   Future<void> _initGpsLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       _fetchWeatherData();
       return;
     }
 
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
@@ -116,28 +117,61 @@ class _MainScreenState extends State<MainScreen> {
     _fetchWeatherData();
   }
 
-  // --- 2. ČÍTANIE HARDVÉROVÉHO BAROMETRA ---
-  void _initBarometerSensor() {
-    // Bezpečný zápis – v prípade nepodporovaného senzora / verzii balíčka použije predvolené hodnoty
+  // --- 2. HARDVÉROVÉ SENZORY (BAROMETER + AKCELEROMETER) ---
+  void _initSensors() {
+    // Sledovanie akcelerometra pre detekciu pohybu (poschodia / výťah)
     try {
-      // Sleduje zmeny akcelerometra pre indikáciu pohybu (všade podporované)
-      _barometerSubscription = userAccelerometerEventStream().listen(
+      _accelSubscription = userAccelerometerEventStream().listen((event) {
+        final double totalMotion = event.x.abs() + event.y.abs() + event.z.abs();
+        final bool isMoving = totalMotion > 1.5;
+
+        if (isMoving != _barometerState.isMovingVertically) {
+          setState(() {
+            _barometerState = _barometerState.copyWith(isMovingVertically: isMoving);
+          });
+        }
+      });
+    } catch (e) {
+      print('Akcelerometer nedostupný: $e');
+    }
+
+    // Čítanie barometra a prepočet nadmorskej výšky
+    try {
+      _barometerSubscription = barometerEventStream().listen(
         (event) {
-          final isMoving = (event.z.abs() > 1.2 || event.x.abs() > 1.2 || event.y.abs() > 1.2);
-          if (isMoving != _barometerState.isMovingVertically) {
-            setState(() {
-              _barometerState = _barometerState.copyWith(
-                isMovingVertically: isMoving,
-              );
-            });
-          }
+          final double newPressure = event.pressure;
+
+          setState(() {
+            final updatedHistory = List<double>.from(_barometerState.pressureHistory);
+            updatedHistory.add(newPressure);
+            if (updatedHistory.length > 20) {
+              updatedHistory.removeAt(0);
+            }
+
+            // Ak sa používateľ NIE HÝBE, zmenu tlaku pripíšeme počasiu (trend)
+            double changeRate = _barometerState.pressureChangeRate;
+            if (!_barometerState.isMovingVertically && updatedHistory.length > 1) {
+              changeRate = updatedHistory.last - updatedHistory.first;
+            }
+
+            // Výpočet aktuálnej výšky z tlaku
+            final double altitude = BarometerState.calculateAltitude(
+              newPressure,
+              _barometerState.basePressure,
+            );
+
+            _barometerState = _barometerState.copyWith(
+              currentPressure: newPressure,
+              pressureChangeRate: changeRate,
+              pressureHistory: updatedHistory,
+              estimatedAltitude: altitude,
+            );
+          });
         },
-        onError: (error) {
-          print('Senzor pohybu nie je dostupný: $error');
-        },
+        onError: (error) => print('Barometer chyba: $error'),
       );
     } catch (e) {
-      print('Senzory nie sú podporované: $e');
+      print('Barometer nie je podporovaný: $e');
     }
   }
 
@@ -149,15 +183,23 @@ class _MainScreenState extends State<MainScreen> {
 
     try {
       final url = Uri.parse(
-        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation',
+        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation,surface_pressure',
       );
 
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
+        
+        // Ak API vráti tlak na hladine mora, nastavíme ho ako referenčný pre výškomer
+        double seaLevelP = 1013.25;
+        if (data.containsKey('current_weather') && data['current_weather'].containsKey('pressure')) {
+          seaLevelP = (data['current_weather']['pressure'] as num).toDouble();
+        }
+
         setState(() {
           _meteoData = MeteoApiData.fromJson(data);
+          _barometerState = _barometerState.copyWith(basePressure: seaLevelP);
           _isLoadingMeteo = false;
         });
       } else {
@@ -166,7 +208,7 @@ class _MainScreenState extends State<MainScreen> {
         });
       }
     } catch (e) {
-      print('Chyba pri sťahovaní počasia: $e');
+      print('Chyba meteo API: $e');
       setState(() {
         _isLoadingMeteo = false;
       });
@@ -208,13 +250,27 @@ class _MainScreenState extends State<MainScreen> {
                         barometer: _barometerState,
                         onSimulateDrop: () {},
                         onSimulateMotion: () {},
-                        onResetSensors: () {},
+                        onResetSensors: () {
+                          // Calibrate base pressure to current
+                          setState(() {
+                            _barometerState = _barometerState.copyWith(
+                              basePressure: _barometerState.currentPressure,
+                            );
+                          });
+                        },
                       ),
                       const SizedBox(height: 16),
                       MapContainer(
                         userLocation: LatLng(_lat, _lng),
-                        communityMarkers: const [],
                         showRadarOverlay: _showRadar,
+                        onLocationSelected: (newPoint) {
+                          setState(() {
+                            _lat = newPoint.latitude;
+                            _lng = newPoint.longitude;
+                            _locationName = "Vybrané miesto";
+                          });
+                          _fetchWeatherData();
+                        },
                       ),
                       const SizedBox(height: 16),
                       RadarWidget(
