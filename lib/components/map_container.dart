@@ -40,10 +40,13 @@ class MapContainer extends StatelessWidget {
                   userAgentPackageName: 'com.example.meteoapp',
                 ),
                 if (showRadarOverlay)
-                  TileLayer(
-                    urlTemplate: 'https://tilecache.rainviewer.com/v2/radar/nowcast/{z}/{x}/{y}/2/1_1.png',
+                  Opacity(
                     opacity: 0.65,
-                    userAgentPackageName: 'com.example.meteoapp',
+                    child: TileLayer(
+                      urlTemplate:
+                          'https://tilecache.rainviewer.com/v2/radar/nowcast/{z}/{x}/{y}/2/1_1.png',
+                      userAgentPackageName: 'com.example.meteoapp',
+                    ),
                   ),
                 MarkerLayer(
                   markers: [
@@ -51,7 +54,11 @@ class MapContainer extends StatelessWidget {
                       point: userLocation,
                       width: 40,
                       height: 40,
-                      child: const Icon(Icons.location_pin, color: Colors.redAccent, size: 40),
+                      child: const Icon(
+                        Icons.location_pin,
+                        color: Colors.redAccent,
+                        size: 40,
+                      ),
                     ),
                   ],
                 ),
@@ -61,7 +68,8 @@ class MapContainer extends StatelessWidget {
               top: 12,
               right: 12,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.black.withOpacity(0.75),
                   borderRadius: BorderRadius.circular(20),
@@ -71,13 +79,18 @@ class MapContainer extends StatelessWidget {
                   children: [
                     Icon(
                       showRadarOverlay ? Icons.thunderstorm : Icons.map,
-                      color: showRadarOverlay ? Colors.cyanAccent : Colors.white54,
+                      color:
+                          showRadarOverlay ? Colors.cyanAccent : Colors.white54,
                       size: 16,
                     ),
                     const SizedBox(width: 6),
                     Text(
                       showRadarOverlay ? 'Radar & Oblaky' : 'Mapa',
-                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
