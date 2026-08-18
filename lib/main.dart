@@ -119,7 +119,7 @@ class _MainScreenState extends State<MainScreen> {
 
   // --- 2. HARDVÉROVÉ SENZORY (BAROMETER + AKCELEROMETER) ---
   void _initSensors() {
-    // Akcelerometer - sledovanie pohybu bez zbytočného re-renderingu
+    // Akcelerometer - sledovanie pohybu bez neustáleho prekrešľovania
     try {
       _accelSubscription = userAccelerometerEventStream().listen((event) {
         final double totalMotion = event.x.abs() + event.y.abs() + event.z.abs();
@@ -135,9 +135,9 @@ class _MainScreenState extends State<MainScreen> {
       print('Akcelerometer nie je dostupný: $e');
     }
 
-    // Barometer - čítanie tlaku a výpočet výšky
+    // Barometer - Použitie správneho streamu barometerEvents
     try {
-      _barometerSubscription = barometerEventStream().listen(
+      _barometerSubscription = barometerEvents.listen(
         (event) {
           final double newPressure = event.pressure;
 
