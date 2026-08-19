@@ -80,7 +80,7 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
-  // 1. Získanie GPS polohy (ak je nedostupná, použije Nové Mesto)
+  // 1. Získanie GPS polohy
   Future<void> _initGpsLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -106,11 +106,10 @@ class _MainScreenState extends State<MainScreen> {
     _fetchWeatherData();
   }
 
-  // 2. Univerzálne spustenie senzorov
+  // 2. Správne počúvanie senzorov
   void _initSensors() {
     try {
-      // Akcelerometer cez univerzálnu inštanciu
-      _accelSubscription = userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
+      _accelSubscription = userAccelerometerEvents.listen((UserAccelerometerEvent event) {
         final double motion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMoving = motion > 3.0;
         if (isMoving != _barometerState.isMovingVertically) {
@@ -124,8 +123,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     try {
-      // Barometer volaný cez hlavnú triedu
-      _pressureSubscription = Sensors().barometerEventStream().listen((BarometerEvent event) {
+      _pressureSubscription = barometerEvents.listen((BarometerEvent event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
           history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
