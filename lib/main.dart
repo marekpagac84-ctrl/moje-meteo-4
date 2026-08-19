@@ -45,7 +45,6 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  // Stavové premenné
   bool _showRadar = true;
   bool _useWindyView = true;
   bool _isLoadingMeteo = false;
@@ -80,7 +79,6 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
-  // GPS logika
   Future<void> _initGpsLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -110,7 +108,6 @@ class _MainScreenState extends State<MainScreen> {
     _fetchWeatherData();
   }
 
-  // Senzor logika
   void _initSensors() {
     try {
       _accelSubscription = userAccelerometerEventStream().listen((event) {
@@ -174,6 +171,7 @@ class _MainScreenState extends State<MainScreen> {
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: [
+                    // Senzory a varovanie
                     SensorPanel(
                       barometer: _barometerState,
                       onSimulateDrop: () {}, 
@@ -183,7 +181,40 @@ class _MainScreenState extends State<MainScreen> {
                     const SizedBox(height: 12),
                     BarometerWarningWidget(barometer: _barometerState),
                     const SizedBox(height: 16),
-                    // ... zbytok widgetov (MapContainer, WindyMap atd.) ...
+                    
+                    // Predpoveď dažďa
+                    RainArrivalWidget(meteoData: _meteoData, isLoading: _isLoadingMeteo),
+                    const SizedBox(height: 16),
+
+                    // Prepínač pohľadu mapy
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Radar & Mapa",
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => setState(() => _useWindyView = !_useWindyView),
+                          icon: Icon(_useWindyView ? Icons.map : Icons.thunderstorm, color: Colors.blueAccent),
+                          label: Text(_useWindyView ? "Prepnúť na Základnú" : "Prepnúť na Windy", style: const TextStyle(color: Colors.blueAccent)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Mapa / Windy / Radar Widget
+                    SizedBox(
+                      height: 350,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: _useWindyView
+                            ? WindyMapContainer(lat: _lat, lng: _lng)
+                            : (_showRadar
+                                ? RadarWidget(lat: _lat, lng: _lng)
+                                : MapContainer(center: LatLng(_lat, _lng))),
+                      ),
+                    ),
                   ],
                 ),
               ),
