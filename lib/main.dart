@@ -10,6 +10,7 @@ import 'components/header_bar.dart';
 import 'components/map_container.dart';
 import 'components/radar_widget.dart';
 import 'components/sensor_panel.dart';
+import 'components/windy_map_container.dart';
 import 'models/meteo_data.dart';
 
 void main() {
@@ -42,6 +43,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   bool _showRadar = true;
+  bool _useWindyView = true;
   bool _isLoadingMeteo = false;
 
   MeteoApiData? _meteoData;
@@ -51,8 +53,6 @@ class _MainScreenState extends State<MainScreen> {
   String _locationName = 'Nové Mesto nad Váhom';
 
   double _currentTimeOffset = 0.0;
-  bool _isPlayingAnimation = false;
-  Timer? _animationTimer;
 
   BarometerState _barometerState = BarometerState(
     currentPressure: 1013.25,
@@ -76,7 +76,6 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _accelSubscription?.cancel();
-    _animationTimer?.cancel();
     super.dispose();
   }
 
@@ -180,94 +179,8 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  void _toggleAnimation() {
-    if (_isPlayingAnimation) {
-      _animationTimer?.cancel();
-      setState(() {
-        _isPlayingAnimation = false;
-      });
-    } else {
-      setState(() {
-        _isPlayingAnimation = true;
-      });
-      _animationTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-        setState(() {
-          _currentTimeOffset += 1.0;
-          if (_currentTimeOffset > 5.0) {
-            _currentTimeOffset = 0.0;
-          }
-        });
-      });
-    }
-  }
-
-  String _formatOffsetTime(double offset) {
-    if (offset < 0.05) return "Teraz";
-    int hours = offset.floor();
-    return "+${hours}h predpoveď";
-  }
-
-  double _getInterpolatedPrecipProb(double offsetHours) {
-    if (_meteoData == null || _meteoData!.hourlyPrecipProb.isEmpty) return 0.0;
-    final list = _meteoData!.hourlyPrecipProb;
-
-    int baseIndex = offsetHours.floor();
-    int nextIndex = baseIndex + 1;
-
-    if (baseIndex >= list.length - 1) return list.last;
-
-    double progress = offsetHours - baseIndex;
-    return list[baseIndex] + (list[nextIndex] - list[baseIndex]) * progress;
-  }
-
-  Map<String, dynamic> _getWeatherDescription(int code) {
-    switch (code) {
-      case 0:
-        return {'text': 'Jasno / Slnečno', 'icon': Icons.wb_sunny, 'color': Colors.amber};
-      case 1:
-      case 2:
-        return {'text': 'Mierne oblačno', 'icon': Icons.wb_cloudy, 'color': Colors.amberAccent};
-      case 3:
-        return {'text': 'Zamračené', 'icon': Icons.cloud, 'color': Colors.grey};
-      case 45:
-      case 48:
-        return {'text': 'Hmla', 'icon': Icons.dehaze, 'color': Colors.blueGrey};
-      case 51:
-      case 53:
-      case 55:
-        return {'text': 'Mrholenie', 'icon': Icons.grain, 'color': Colors.lightBlue};
-      case 61:
-      case 63:
-      case 65:
-        return {'text': 'Dážď', 'icon': Icons.umbrella, 'color': Colors.blue};
-      case 80:
-      case 81:
-      case 82:
-        return {'text': 'Prehánky', 'icon': Icons.cloudy_snowing, 'color': Colors.blueAccent};
-      case 95:
-      case 96:
-      case 99:
-        return {'text': 'Búrky!', 'icon': Icons.flash_on, 'color': Colors.deepOrange};
-      default:
-        return {'text': 'Oblačno', 'icon': Icons.cloud, 'color': Colors.grey};
-    }
-  }
-
-  int _getCurrentWeatherCode(double offsetHours) {
-    if (_meteoData == null || _meteoData!.hourlyWeatherCodes.isEmpty) return 0;
-    int index = offsetHours.round();
-    if (index >= _meteoData!.hourlyWeatherCodes.length) {
-      return _meteoData!.hourlyWeatherCodes.last;
-    }
-    return _meteoData!.hourlyWeatherCodes[index];
-  }
-
   @override
   Widget build(BuildContext context) {
-    final double precipProb = _getInterpolatedPrecipProb(_currentTimeOffset);
-    final int weatherCode = _getCurrentWeatherCode(_currentTimeOffset);
-    final weatherInfo = _getWeatherDescription(weatherCode);
-
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -309,119 +222,63 @@ class _MainScreenState extends State<MainScreen> {
                           });
                         },
                       ),
-                      const SizedBox(height: 16),
-                      MapContainer(
-                        userLocation: LatLng(_lat, _lng),
-                        showRadarOverlay: _showRadar,
-                        timeOffsetHours: _currentTimeOffset,
-                        onLocationSelected: (newPoint) {
-                          setState(() {
-                            _lat = newPoint.latitude;
-                            _lng = newPoint.longitude;
-                            _locationName = "Vybrané miesto";
-                          });
-                          _fetchWeatherData();
-                        },
-                      ),
-                      Container(
-                        margin: const EdgeInsets.only(top: 8),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              icon: Icon(
-                                _isPlayingAnimation ? Icons.pause_circle : Icons.play_circle,
-                                color: Colors.blueAccent,
-                                size: 32,
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "Predpovedná mapa",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          SegmentedButton<bool>(
+                            segments: const [
+                              ButtonSegment(
+                                value: true,
+                                label: Text("Windy 3D"),
+                                icon: Icon(Icons.air, size: 16),
                               ),
-                              onPressed: _toggleAnimation,
-                            ),
-                            SizedBox(
-                              width: 80,
-                              child: Text(
-                                _formatOffsetTime(_currentTimeOffset),
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                              ButtonSegment(
+                                value: false,
+                                label: Text("Radar"),
+                                icon: Icon(Icons.map, size: 16),
                               ),
+                            ],
+                            selected: {_useWindyView},
+                            onSelectionChanged: (Set<bool> newSelection) {
+                              setState(() {
+                                _useWindyView = newSelection.first;
+                              });
+                            },
+                            style: const ButtonStyle(
+                              visualDensity: VisualDensity.compact,
                             ),
-                            Expanded(
-                              child: Slider(
-                                value: _currentTimeOffset,
-                                min: 0.0,
-                                max: 5.0,
-                                divisions: 5,
-                                onChanged: (val) {
-                                  setState(() {
-                                    _currentTimeOffset = val;
-                                  });
-                                },
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.refresh, color: Colors.white54, size: 20),
-                              onPressed: () {
-                                setState(() {
-                                  _currentTimeOffset = 0.0;
-                                });
-                              },
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      Container(
-                        margin: const EdgeInsets.only(top: 8),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white10),
+                      const SizedBox(height: 12),
+                      if (_useWindyView)
+                        WindyMapContainer(
+                          key: ValueKey("windy_$_lat_$_lng"),
+                          userLocation: LatLng(_lat, _lng),
+                        )
+                      else
+                        MapContainer(
+                          userLocation: LatLng(_lat, _lng),
+                          showRadarOverlay: _showRadar,
+                          timeOffsetHours: _currentTimeOffset,
+                          onLocationSelected: (newPoint) {
+                            setState(() {
+                              _lat = newPoint.latitude;
+                              _lng = newPoint.longitude;
+                              _locationName = "Vybrané miesto";
+                            });
+                            _fetchWeatherData();
+                          },
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.max,
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(weatherInfo['icon'] as IconData, color: weatherInfo['color'] as Color, size: 28),
-                                const SizedBox(width: 8),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Stav', style: TextStyle(color: Colors.white54, fontSize: 11)),
-                                    Text(
-                                      weatherInfo['text'] as String,
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(
-                              height: 30,
-                              child: VerticalDivider(color: Colors.white24, thickness: 1),
-                            ),
-                            Row(
-                              children: [
-                                const Icon(Icons.water_drop, color: Colors.cyanAccent, size: 28),
-                                const SizedBox(width: 8),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('Riziko dažďa', style: TextStyle(color: Colors.white54, fontSize: 11)),
-                                    Text(
-                                      '${precipProb.round()} %',
-                                      style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 16),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
                       const SizedBox(height: 16),
                       RadarWidget(
                         meteoData: _meteoData,
