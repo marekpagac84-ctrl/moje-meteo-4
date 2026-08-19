@@ -43,21 +43,30 @@ class RainArrivalWidget extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    // Analýza zrážok na najbližších 12 hodín
     int maxProb = 0;
-    String arrivalTime = "Žiadny drahší dážď v najbližších hodinách";
+    String arrivalTime = "";
     bool willRain = false;
+    final List<Map<String, dynamic>> hourlyTimeline = [];
 
     if (meteoData!.hourlyPrecipitationProb.isNotEmpty) {
-      for (int i = 0; i < meteoData!.hourlyPrecipitationProb.length; i++) {
+      final now = DateTime.now();
+      for (int i = 0; i < meteoData!.hourlyPrecipitationProb.length && i < 12; i++) {
         int prob = meteoData!.hourlyPrecipitationProb[i];
+        final hourTime = now.add(Duration(hours: i));
+        final formattedHour = "${hourTime.hour.toString().padLeft(2, '0')}:00";
+
+        hourlyTimeline.add({
+          'time': formattedHour,
+          'prob': prob,
+        });
+
         if (prob > maxProb) {
           maxProb = prob;
         }
+
         if (prob >= 30 && !willRain) {
           willRain = true;
-          final now = DateTime.now().add(Duration(hours: i));
-          arrivalTime = "${now.hour.toString().padLeft(2, '0')}:00";
+          arrivalTime = formattedHour;
         }
       }
     }
@@ -87,7 +96,7 @@ class RainArrivalWidget extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               const Text(
-                "Sledovanie zrážkového frontu",
+                "Očakávaný príchod zrážok",
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -102,17 +111,17 @@ class RainArrivalWidget extends StatelessWidget {
               text: TextSpan(
                 style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
                 children: [
-                  const TextSpan(text: "Dážď sa očakáva od "),
+                  const TextSpan(text: "Zrážky sa očakávajú o "),
+                  TextSpan(
+                    text: arrivalTime,
+                    style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  const TextSpan(text: " zo smeru "),
                   TextSpan(
                     text: windDirName,
                     style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold),
                   ),
-                  const TextSpan(text: " okolo "),
-                  TextSpan(
-                    text: arrivalTime,
-                    style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold),
-                  ),
-                  const TextSpan(text: " s pravdepodobnosťou "),
+                  const TextSpan(text: " s maximálnou pravdepodobnosťou "),
                   TextSpan(
                     text: "$maxProb %",
                     style: TextStyle(
@@ -126,10 +135,64 @@ class RainArrivalWidget extends StatelessWidget {
             ),
           ] else ...[
             Text(
-              "V najbližších hodinách sa nepredpokladajú výrazné zrážky. Prúdenie vzduchu smeruje od $windDirName.",
+              "V najbližších hodinách nebol zistený zvýšený výskyt zrážok. Vzdušné prúdenie smeruje od $windDirName.",
               style: const TextStyle(color: Colors.white70, fontSize: 14),
             ),
           ],
+          const SizedBox(height: 16),
+          const Text(
+            "Pravdepodobnosť po hodinách:",
+            style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 65,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: hourlyTimeline.length,
+              itemBuilder: (context, index) {
+                final item = hourlyTimeline[index];
+                final int prob = item['prob'];
+                return Container(
+                  width: 55,
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: prob >= 50
+                        ? Colors.blueAccent.withOpacity(0.3)
+                        : prob >= 20
+                            ? Colors.blueGrey.withOpacity(0.2)
+                            : Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: prob >= 50 ? Colors.cyanAccent.withOpacity(0.5) : Colors.transparent,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        item['time'],
+                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                      Text(
+                        "$prob%",
+                        style: TextStyle(
+                          color: prob >= 50
+                              ? Colors.cyanAccent
+                              : prob >= 20
+                                  ? Colors.orangeAccent
+                                  : Colors.white38,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
