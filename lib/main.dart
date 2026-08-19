@@ -97,7 +97,9 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     try {
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
       setState(() {
         _lat = position.latitude;
         _lng = position.longitude;
@@ -110,7 +112,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _initSensors() {
-    // 1. Akcelerometer pre zistenie pohybu
     try {
       _accelSubscription = userAccelerometerEventStream().listen((event) {
         final now = DateTime.now();
@@ -129,7 +130,6 @@ class _MainScreenState extends State<MainScreen> {
       print('Akcelerometer nedostupný: $e');
     }
 
-    // 2. Odchyt hardvérového barometra zo sensors_plus
     try {
       _pressureSubscription = barometerEventStream().listen((BarometerEvent event) {
         final double pressure = event.pressure;
@@ -157,7 +157,9 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _fetchWeatherData() async {
     setState(() => _isLoadingMeteo = true);
     try {
-      final url = Uri.parse('https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation_probability,surface_pressure&forecast_hours=12');
+      final url = Uri.parse(
+        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation_probability,surface_pressure&forecast_hours=12',
+      );
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -168,7 +170,6 @@ class _MainScreenState extends State<MainScreen> {
           _meteoData = meteo;
           _isLoadingMeteo = false;
 
-          // Ak senzor nepodal dáta, použijeme tlak z meteo stanice
           if (_barometerState.pressureHistory.isEmpty && meteo.currentPressure > 0) {
             _barometerState = _barometerState.copyWith(
               currentPressure: meteo.currentPressure,
@@ -209,9 +210,11 @@ class _MainScreenState extends State<MainScreen> {
                   children: [
                     SensorPanel(
                       barometer: _barometerState,
-                      onSimulateDrop: () {}, 
+                      onSimulateDrop: () {},
                       onSimulateMotion: () {},
-                      onResetSensors: () => setState(() => _barometerState = _barometerState.copyWith(basePressure: _barometerState.currentPressure)),
+                      onResetSensors: () => setState(() => _barometerState = _barometerState.copyWith(
+                        basePressure: _barometerState.currentPressure,
+                      )),
                     ),
                     const SizedBox(height: 12),
                     BarometerWarningWidget(barometer: _barometerState),
@@ -226,12 +229,22 @@ class _MainScreenState extends State<MainScreen> {
                       children: [
                         const Text(
                           "Radar & Mapa",
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         TextButton.icon(
                           onPressed: () => setState(() => _useWindyView = !_useWindyView),
-                          icon: Icon(_useWindyView ? Icons.map : Icons.thunderstorm, color: Colors.blueAccent),
-                          label: Text(_useWindyView ? "Prepnúť na Základnú" : "Prepnúť na Windy", style: const TextStyle(color: Colors.blueAccent)),
+                          icon: Icon(
+                            _useWindyView ? Icons.map : Icons.thunderstorm,
+                            color: Colors.blueAccent,
+                          ),
+                          label: Text(
+                            _useWindyView ? "Prepnúť na Základnú" : "Prepnúť na Windy",
+                            style: const TextStyle(color: Colors.blueAccent),
+                          ),
                         ),
                       ],
                     ),
