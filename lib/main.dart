@@ -106,10 +106,10 @@ class _MainScreenState extends State<MainScreen> {
     _fetchWeatherData();
   }
 
-  // 2. Bezpečné počúvanie senzorov bez zbytočnej zložitej logiky
+  // 2. Bezpečné počúvanie senzorov prispôsobené pre novší sensors_plus
   void _initSensors() {
     try {
-      _accelSubscription = userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
+      _accelSubscription = userAccelerometerEvents.listen((UserAccelerometerEvent event) {
         final double motion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMoving = motion > 3.0;
         if (isMoving != _barometerState.isMovingVertically) {
@@ -123,7 +123,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     try {
-      _pressureSubscription = barometerEventStream().listen((BarometerEvent event) {
+      _pressureSubscription = barometerEvents.listen((BarometerEvent event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
           history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
