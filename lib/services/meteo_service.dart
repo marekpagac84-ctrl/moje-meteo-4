@@ -10,9 +10,9 @@ class MeteoService {
     PresetLocation(name: 'Banská Bystrica', lat: 48.7363, lng: 19.1460),
   ];
 
-  static List<CommunityMarker> getSampleCommunityMarkers(double userLat, double userLng) {
+  static List<CommunityMarker> getSimpleCommunityMarkers(double userLat, double userLng) {
     return [
-      CommunityMarker(title: 'Búrkový mrak v okolí', lat: userLat + 0.02, lng: userLng + 0.02),
+      CommunityMarker(title: 'Búrkový mrak v diaľke', lat: userLat + 0.02, lng: userLng + 0.02),
       CommunityMarker(title: 'Silný vietor', lat: userLat - 0.01, lng: userLng - 0.01),
     ];
   }
