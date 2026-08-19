@@ -262,7 +262,7 @@ class _MainScreenState extends State<MainScreen> {
                       const SizedBox(height: 12),
                       if (_useWindyView)
                         WindyMapContainer(
-                          key: ValueKey("windy_$_lat_$_lng"),
+                          key: ValueKey("windy_${_lat}_$_lng"),
                           userLocation: LatLng(_lat, _lng),
                         )
                       else
