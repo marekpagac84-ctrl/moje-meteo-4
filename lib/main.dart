@@ -49,6 +49,7 @@ class _MainScreenState extends State<MainScreen> {
   bool _isLoadingMeteo = false;
   MeteoApiData? _meteoData;
 
+  // Predvolené súradnice pre Nové Mesto nad Váhom
   double _lat = 48.7576;
   double _lng = 17.8309;
   String _locationName = 'Nové Mesto nad Váhom';
@@ -64,7 +65,6 @@ class _MainScreenState extends State<MainScreen> {
 
   StreamSubscription? _accelSubscription;
   StreamSubscription? _pressureSubscription;
-  DateTime _lastAccelUpdate = DateTime.now();
 
   @override
   void initState() {
@@ -80,50 +80,41 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
+  // 1. Získanie GPS polohy (ak je nedostupná, použije Nové Mesto)
   Future<void> _initGpsLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      _fetchWeatherData();
-      return;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        _fetchWeatherData();
-        return;
-      }
-    }
-
     try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      setState(() {
-        _lat = position.latitude;
-        _lng = position.longitude;
-        _locationName = 'Moja GPS poloha';
-      });
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (serviceEnabled) {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+          Position position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high,
+          );
+          setState(() {
+            _lat = position.latitude;
+            _lng = position.longitude;
+            _locationName = 'Moja GPS poloha';
+          });
+        }
+      }
     } catch (e) {
-      debugPrint('Chyba GPS: $e');
+      debugPrint('GPS chyba: $e');
     }
     _fetchWeatherData();
   }
 
+  // 2. Bezpečné počúvanie senzorov bez zbytočnej zložitej logiky
   void _initSensors() {
-    // Akcelerometer pre detekciu pohybu
     try {
       _accelSubscription = userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
-        final now = DateTime.now();
-        if (now.difference(_lastAccelUpdate).inMilliseconds < 1000) return;
-        final double totalMotion = event.x.abs() + event.y.abs() + event.z.abs();
-        final bool isMovingNow = totalMotion > 3.0;
-
-        if (isMovingNow != _barometerState.isMovingVertically) {
-          _lastAccelUpdate = now;
+        final double motion = event.x.abs() + event.y.abs() + event.z.abs();
+        final bool isMoving = motion > 3.0;
+        if (isMoving != _barometerState.isMovingVertically) {
           setState(() {
-            _barometerState = _barometerState.copyWith(isMovingVertically: isMovingNow);
+            _barometerState = _barometerState.copyWith(isMovingVertically: isMoving);
           });
         }
       });
@@ -131,31 +122,27 @@ class _MainScreenState extends State<MainScreen> {
       debugPrint('Akcelerometer nedostupný: $e');
     }
 
-    // Barometer z balíčka sensors_plus
     try {
       _pressureSubscription = barometerEventStream().listen((BarometerEvent event) {
-        final double pressure = event.pressure;
-        if (pressure > 0) {
-          List<PressurePoint> updatedHistory = List.from(_barometerState.pressureHistory);
-          updatedHistory.add(PressurePoint(timestamp: DateTime.now(), pressure: pressure));
-
-          if (updatedHistory.length > 20) {
-            updatedHistory.removeAt(0);
-          }
+        if (event.pressure > 0) {
+          List<PressurePoint> history = List.from(_barometerState.pressureHistory);
+          history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
+          if (history.length > 20) history.removeAt(0);
 
           setState(() {
             _barometerState = _barometerState.copyWith(
-              currentPressure: pressure,
-              pressureHistory: updatedHistory,
+              currentPressure: event.pressure,
+              pressureHistory: history,
             );
           });
         }
       });
     } catch (e) {
-      debugPrint('Chyba senzora tlaku: $e');
+      debugPrint('Barometer nedostupný: $e');
     }
   }
 
+  // 3. Stiahnutie dát o zrážkach pre widget predpovede
   Future<void> _fetchWeatherData() async {
     setState(() => _isLoadingMeteo = true);
     try {
@@ -171,13 +158,6 @@ class _MainScreenState extends State<MainScreen> {
         setState(() {
           _meteoData = meteo;
           _isLoadingMeteo = false;
-
-          if (_barometerState.pressureHistory.isEmpty && meteo.currentPressure > 0) {
-            _barometerState = _barometerState.copyWith(
-              currentPressure: meteo.currentPressure,
-              basePressure: meteo.currentPressure,
-            );
-          }
         });
       }
     } catch (e) {
