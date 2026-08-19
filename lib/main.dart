@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
+import 'package0:http/http.dart' as http; // opravené
 import 'package:latlong2/latlong.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
@@ -270,7 +270,7 @@ class _MainScreenState extends State<MainScreen> {
                           userLocation: LatLng(_lat, _lng),
                           showRadarOverlay: _showRadar,
                           timeOffsetHours: _currentTimeOffset,
-                          onLocationSelected: (newPoint) {
+                          onLocationSelected: (LatLng newPoint) {
                             setState(() {
                               _lat = newPoint.latitude;
                               _lng = newPoint.longitude;
