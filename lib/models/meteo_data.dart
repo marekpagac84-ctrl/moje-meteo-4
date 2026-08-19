@@ -1,46 +1,4 @@
-class MeteoApiData {
-  final double currentTemp;
-  final double currentPressure;
-  final double windSpeed;
-  final double? windDirection;
-  final List<int> hourlyPrecipitationProb;
-
-  MeteoApiData({
-    required this.currentTemp,
-    required this.currentPressure,
-    required this.windSpeed,
-    this.windDirection,
-    required this.hourlyPrecipitationProb,
-  });
-
-  factory MeteoApiData.fromJson(Map<String, dynamic> json) {
-    List<int> probList = [];
-    if (json.containsKey('hourly') && json['hourly'].containsKey('precipitation_probability')) {
-      final rawList = json['hourly']['precipitation_probability'] as List<dynamic>;
-      probList = rawList.map((e) => (e as num).toInt()).toList();
-    }
-
-    double? windDir;
-    if (json.containsKey('hourly') && json['hourly'].containsKey('winddirection_10m')) {
-      final rawDir = json['hourly']['winddirection_10m'] as List<dynamic>;
-      if (rawDir.isNotEmpty) {
-        windDir = (rawDir.first as num).toDouble();
-      }
-    } else if (json.containsKey('current_weather') && json['current_weather'].containsKey('winddirection')) {
-      windDir = (json['current_weather']['winddirection'] as num).toDouble();
-    }
-
-    final currentWeather = json['current_weather'] ?? {};
-
-    return MeteoApiData(
-      currentTemp: (currentWeather['temperature'] as num?)?.toDouble() ?? 0.0,
-      currentPressure: (currentWeather['pressure'] as num?)?.toDouble() ?? 1013.25,
-      windSpeed: (currentWeather['windspeed'] as num?)?.toDouble() ?? 0.0,
-      windDirection: windDir,
-      hourlyPrecipitationProb: probList,
-    );
-  }
-}
+import 'package:flutter/material.dart';
 
 class PressurePoint {
   final DateTime timestamp;
@@ -88,25 +46,50 @@ class BarometerState {
   }
 }
 
-class PresetLocation {
+class MeteoApiData {
+  final double currentPressure;
+  final int? rainArrivalMinutes;
+
+  MeteoApiData({
+    required this.currentPressure,
+    this.rainArrivalMinutes,
+  });
+
+  factory MeteoApiData.fromJson(Map<String, dynamic> json) {
+    double pressure = 0.0;
+    int? rainArrival;
+
+    if (json.containsKey('hourly')) {
+      final hourly = json['hourly'];
+      if (hourly['surface_pressure'] != null && (hourly['surface_pressure'] as List).isNotEmpty) {
+        pressure = (hourly['surface_pressure'][0] as num).toDouble();
+      }
+
+      if (hourly['precipitation_probability'] != null) {
+        final List probs = hourly['precipitation_probability'];
+        for (int i = 0; i < probs.length; i++) {
+          if ((probs[i] as num) > 30) {
+            rainArrival = i * 60;
+            break;
+          }
+        }
+      }
+    }
+
+    return MeteoApiData(
+      currentPressure: pressure,
+      rainArrivalMinutes: rainArrival,
+    );
+  }
+}
+
+class LocationPreset {
   final String name;
   final double lat;
   final double lng;
 
-  const PresetLocation({
+  const LocationPreset({
     required this.name,
-    required this.lat,
-    required this.lng,
-  });
-}
-
-class CommunityMarker {
-  final String title;
-  final double lat;
-  final double lng;
-
-  const CommunityMarker({
-    required this.title,
     required this.lat,
     required this.lng,
   });
