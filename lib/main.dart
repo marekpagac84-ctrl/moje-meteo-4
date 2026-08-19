@@ -5,7 +5,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:sensors_plus/sensors_plus.dart';
-import 'package:environment_sensors/environment_sensors.dart';
 
 import 'models/meteo_data.dart';
 import 'components/header_bar.dart';
@@ -63,7 +62,6 @@ class _MainScreenState extends State<MainScreen> {
     basePressure: 1013.25,
   );
 
-  final EnvironmentSensors _envSensors = EnvironmentSensors();
   StreamSubscription? _accelSubscription;
   StreamSubscription? _pressureSubscription;
   DateTime _lastAccelUpdate = DateTime.now();
@@ -131,9 +129,10 @@ class _MainScreenState extends State<MainScreen> {
       print('Akcelerometer nedostupný: $e');
     }
 
-    // 2. Odchyt hardvérového barometra
+    // 2. Odchyt hardvérového barometra zo sensors_plus
     try {
-      _pressureSubscription = _envSensors.pressure.listen((double pressure) {
+      _pressureSubscription = barometerEventStream().listen((BarometerEvent event) {
+        final double pressure = event.pressure;
         if (pressure > 0) {
           List<PressurePoint> updatedHistory = List.from(_barometerState.pressureHistory);
           updatedHistory.add(PressurePoint(timestamp: DateTime.now(), pressure: pressure));
