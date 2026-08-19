@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package0:latlong2/latlong.dart';
 
 class MapContainer extends StatelessWidget {
   final LatLng userLocation;
@@ -35,12 +35,10 @@ class MapContainer extends StatelessWidget {
                 },
               ),
               children: [
-                // Základná mapa
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'sk.meteoapp.app',
                 ),
-                // Radarové zrážky
                 if (showRadarOverlay)
                   Opacity(
                     opacity: 0.7,
@@ -50,7 +48,6 @@ class MapContainer extends StatelessWidget {
                       userAgentPackageName: 'sk.meteoapp.app',
                     ),
                   ),
-                // Značka polohy
                 MarkerLayer(
                   markers: [
                     Marker(
