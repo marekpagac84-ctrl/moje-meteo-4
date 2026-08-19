@@ -106,7 +106,7 @@ class _MainScreenState extends State<MainScreen> {
 
   void _initSensors() {
     try {
-      _accelSubscription = userAccelerometerEvents.listen((UserAccelerometerEvent event) {
+      _accelSubscription = userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
         final double motion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMoving = motion > 3.0;
         if (isMoving != _barometerState.isMovingVertically) {
@@ -120,7 +120,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     try {
-      _pressureSubscription = barometerEvents.listen((BarometerEvent event) {
+      _pressureSubscription = barometerEventStream().listen((BarometerEvent event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
           history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
@@ -161,6 +161,28 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  void _simulatePressureDrop() {
+    setState(() {
+      final double newPressure = _barometerState.currentPressure - 3.5;
+      List<PressurePoint> history = List.from(_barometerState.pressureHistory);
+      history.add(PressurePoint(timestamp: DateTime.now(), pressure: newPressure));
+
+      _barometerState = _barometerState.copyWith(
+        currentPressure: newPressure,
+        pressureChangeRate: -3.5,
+        pressureHistory: history,
+      );
+    });
+  }
+
+  void _simulateMotionToggle() {
+    setState(() {
+      _barometerState = _barometerState.copyWith(
+        isMovingVertically: !_barometerState.isMovingVertically,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -188,10 +210,11 @@ class _MainScreenState extends State<MainScreen> {
                   children: [
                     SensorPanel(
                       barometer: _barometerState,
-                      onSimulateDrop: () {},
-                      onSimulateMotion: () {},
+                      onSimulateDrop: _simulatePressureDrop,
+                      onSimulateMotion: _simulateMotionToggle,
                       onResetSensors: () => setState(() => _barometerState = _barometerState.copyWith(
                         basePressure: _barometerState.currentPressure,
+                        pressureChangeRate: 0.0,
                       )),
                     ),
                     const SizedBox(height: 12),
