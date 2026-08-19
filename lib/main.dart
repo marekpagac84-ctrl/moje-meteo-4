@@ -49,7 +49,6 @@ class _MainScreenState extends State<MainScreen> {
   bool _isLoadingMeteo = false;
   MeteoApiData? _meteoData;
 
-  // Predvolené súradnice pre Nové Mesto nad Váhom
   double _lat = 48.7576;
   double _lng = 17.8309;
   String _locationName = 'Nové Mesto nad Váhom';
@@ -80,7 +79,6 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
-  // 1. Získanie GPS polohy (ak je nedostupná, použije Nové Mesto)
   Future<void> _initGpsLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -106,7 +104,6 @@ class _MainScreenState extends State<MainScreen> {
     _fetchWeatherData();
   }
 
-  // 2. Správne načítanie senzorov pre sensors_plus 5.0.0+
   void _initSensors() {
     try {
       _accelSubscription = userAccelerometerEvents.listen((UserAccelerometerEvent event) {
@@ -142,7 +139,6 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  // 3. Stiahnutie dát o zrážkach pre widget predpovede
   Future<void> _fetchWeatherData() async {
     setState(() => _isLoadingMeteo = true);
     try {
