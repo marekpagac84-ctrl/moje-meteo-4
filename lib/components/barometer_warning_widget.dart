@@ -32,7 +32,7 @@ class BarometerWarningWidget extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.sensors, color: Colors.emerald, size: 20),
+            const Icon(Icons.sensors, color: Colors.greenAccent, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -86,7 +86,7 @@ class BarometerWarningWidget extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   descText,
-                  style: const TextStyle(color: Colors.white90, fontSize: 13, height: 1.3),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.3),
                 ),
               ],
             ),
