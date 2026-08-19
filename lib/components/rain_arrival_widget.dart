@@ -35,7 +35,7 @@ class RainArrivalWidget extends StatelessWidget {
       if (mins == 0) {
         rainInfo = "Práve prší alebo začína pršať!";
         icon = Icons.umbrella;
-        iconColor = Colors.blueLightActive;
+        iconColor = Colors.lightBlue;
       } else if (mins > 0) {
         final hours = mins ~/ 60;
         final remMins = mins % 60;
