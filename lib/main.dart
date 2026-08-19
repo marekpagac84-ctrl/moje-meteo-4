@@ -106,7 +106,7 @@ class _MainScreenState extends State<MainScreen> {
         _locationName = 'Moja GPS poloha';
       });
     } catch (e) {
-      print('Chyba GPS: $e');
+      debugPrint('Chyba GPS: $e');
     }
     _fetchWeatherData();
   }
@@ -128,10 +128,10 @@ class _MainScreenState extends State<MainScreen> {
         }
       });
     } catch (e) {
-      print('Akcelerometer nedostupný: $e');
+      debugPrint('Akcelerometer nedostupný: $e');
     }
 
-    // Barometer cez overený top-level stream z sensors_plus
+    // Barometer z balíčka sensors_plus
     try {
       _pressureSubscription = barometerEventStream().listen((BarometerEvent event) {
         final double pressure = event.pressure;
@@ -152,7 +152,7 @@ class _MainScreenState extends State<MainScreen> {
         }
       });
     } catch (e) {
-      print('Chyba senzora tlaku: $e');
+      debugPrint('Chyba senzora tlaku: $e');
     }
   }
 
