@@ -14,14 +14,12 @@ class MeteoApiData {
   });
 
   factory MeteoApiData.fromJson(Map<String, dynamic> json) {
-    // Načítanie hodinových pravdepodobností zrážok
     List<int> probList = [];
     if (json.containsKey('hourly') && json['hourly'].containsKey('precipitation_probability')) {
       final rawList = json['hourly']['precipitation_probability'] as List<dynamic>;
       probList = rawList.map((e) => (e as num).toInt()).toList();
     }
 
-    // Načítanie smeru vetra
     double? windDir;
     if (json.containsKey('hourly') && json['hourly'].containsKey('winddirection_10m')) {
       final rawDir = json['hourly']['winddirection_10m'] as List<dynamic>;
@@ -88,4 +86,28 @@ class BarometerState {
       basePressure: basePressure ?? this.basePressure,
     );
   }
+}
+
+class PresetLocation {
+  final String name;
+  final double lat;
+  final double lng;
+
+  const PresetLocation({
+    required this.name,
+    required this.lat,
+    required this.lng,
+  });
+}
+
+class CommunityMarker {
+  final String title;
+  final double lat;
+  final double lng;
+
+  const CommunityMarker({
+    required this.title,
+    required this.lat,
+    required this.lng,
+  });
 }
