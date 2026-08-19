@@ -1,5 +1,5 @@
-name: meteoapp
-description: A new Flutter project.
+name: moje_meteo
+description: "Meteo aplikacia s barometrom"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,12 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_map: ^6.0.0
-  latlong2: ^0.9.0
+  environment_sensors: ^1.2.0
   geolocator: ^10.1.0
-  sensors_plus: ^5.0.0
   http: ^1.2.0
-  webview_flutter: ^4.7.0
+  latlong2: ^0.9.0
+  sensors_plus: ^5.0.0
 
 dev_dependencies:
   flutter_test:
