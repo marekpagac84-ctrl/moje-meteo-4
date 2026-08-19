@@ -80,7 +80,7 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
-  // 1. Získanie GPS polohy
+  // 1. Získanie GPS polohy (ak je nedostupná, použije Nové Mesto)
   Future<void> _initGpsLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -106,7 +106,7 @@ class _MainScreenState extends State<MainScreen> {
     _fetchWeatherData();
   }
 
-  // 2. Správne počúvanie senzorov
+  // 2. Správne načítanie senzorov pre sensors_plus 5.0.0+
   void _initSensors() {
     try {
       _accelSubscription = userAccelerometerEvents.listen((UserAccelerometerEvent event) {
