@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
-import 'package0:latlong2/latlong.dart' as latlong; // pre istotu s prefixom alebo priamym importom
 import 'package:latlong2/latlong.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
@@ -182,9 +181,6 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final double currentLat = _lat;
-    final double currentLng = _lng;
-
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -266,12 +262,12 @@ class _MainScreenState extends State<MainScreen> {
                       const SizedBox(height: 12),
                       if (_useWindyView)
                         WindyMapContainer(
-                          key: ValueKey("windy_${currentLat}_$currentLng"),
-                          userLocation: LatLng(currentLat, currentLng),
+                          key: ValueKey("windy_$_lat_$_lng"),
+                          userLocation: LatLng(_lat, _lng),
                         )
                       else
                         MapContainer(
-                          userLocation: LatLng(currentLat, currentLng),
+                          userLocation: LatLng(_lat, _lng),
                           showRadarOverlay: _showRadar,
                           timeOffsetHours: _currentTimeOffset,
                           onLocationSelected: (LatLng newPoint) {
