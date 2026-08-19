@@ -5,8 +5,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:environment_sensors/environment_sensors.dart';
 
-// Importy tvojich komponentov a modelov
 import 'models/meteo_data.dart';
 import 'components/header_bar.dart';
 import 'components/sensor_panel.dart';
@@ -63,7 +63,9 @@ class _MainScreenState extends State<MainScreen> {
     basePressure: 1013.25,
   );
 
+  final EnvironmentSensors _envSensors = EnvironmentSensors();
   StreamSubscription? _accelSubscription;
+  StreamSubscription? _pressureSubscription;
   DateTime _lastAccelUpdate = DateTime.now();
 
   @override
@@ -76,6 +78,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void dispose() {
     _accelSubscription?.cancel();
+    _pressureSubscription?.cancel();
     super.dispose();
   }
 
@@ -109,6 +112,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _initSensors() {
+    // 1. Akcelerometer pre zistenie pohybu
     try {
       _accelSubscription = userAccelerometerEventStream().listen((event) {
         final now = DateTime.now();
@@ -124,7 +128,30 @@ class _MainScreenState extends State<MainScreen> {
         }
       });
     } catch (e) {
-      print('Akcelerometer nedostupný');
+      print('Akcelerometer nedostupný: $e');
+    }
+
+    // 2. Odchyt hardvérového barometra
+    try {
+      _pressureSubscription = _envSensors.pressure.listen((double pressure) {
+        if (pressure > 0) {
+          List<PressurePoint> updatedHistory = List.from(_barometerState.pressureHistory);
+          updatedHistory.add(PressurePoint(timestamp: DateTime.now(), pressure: pressure));
+
+          if (updatedHistory.length > 20) {
+            updatedHistory.removeAt(0);
+          }
+
+          setState(() {
+            _barometerState = _barometerState.copyWith(
+              currentPressure: pressure,
+              pressureHistory: updatedHistory,
+            );
+          });
+        }
+      });
+    } catch (e) {
+      print('Chyba senzora tlaku: $e');
     }
   }
 
@@ -136,9 +163,19 @@ class _MainScreenState extends State<MainScreen> {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
+        final meteo = MeteoApiData.fromJson(data);
+
         setState(() {
-          _meteoData = MeteoApiData.fromJson(data);
+          _meteoData = meteo;
           _isLoadingMeteo = false;
+
+          // Ak senzor nepodal dáta, použijeme tlak z meteo stanice
+          if (_barometerState.pressureHistory.isEmpty && meteo.currentPressure > 0) {
+            _barometerState = _barometerState.copyWith(
+              currentPressure: meteo.currentPressure,
+              basePressure: meteo.currentPressure,
+            );
+          }
         });
       }
     } catch (e) {
@@ -171,7 +208,6 @@ class _MainScreenState extends State<MainScreen> {
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: [
-                    // Senzory a varovanie
                     SensorPanel(
                       barometer: _barometerState,
                       onSimulateDrop: () {}, 
@@ -181,12 +217,11 @@ class _MainScreenState extends State<MainScreen> {
                     const SizedBox(height: 12),
                     BarometerWarningWidget(barometer: _barometerState),
                     const SizedBox(height: 16),
-                    
-                    // Predpoveď dažďa
-                    RainArrivalWidget(meteoData: _meteoData, isLoading: _isLoadingMeteo),
+                    RainArrivalWidget(
+                      meteoData: _meteoData,
+                      isLoading: _isLoadingMeteo,
+                    ),
                     const SizedBox(height: 16),
-
-                    // Prepínač pohľadu mapy
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -202,8 +237,6 @@ class _MainScreenState extends State<MainScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
-                    // Mapa / Windy / Radar Widget
                     SizedBox(
                       height: 350,
                       child: ClipRRect(
