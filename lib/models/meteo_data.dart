@@ -1,54 +1,64 @@
-import 'package:flutter/material.dart';
-
 class MeteoApiData {
   final double currentTemp;
   final double currentPressure;
-  final List<double> hourlyClouds;
-  final List<double> hourlyPrecipProb;
-  final List<int> hourlyWeatherCodes;
+  final double windSpeed;
+  final double? windDirection;
+  final List<int> hourlyPrecipitationProb;
 
   MeteoApiData({
     required this.currentTemp,
     required this.currentPressure,
-    required this.hourlyClouds,
-    required this.hourlyPrecipProb,
-    required this.hourlyWeatherCodes,
+    required this.windSpeed,
+    this.windDirection,
+    required this.hourlyPrecipitationProb,
   });
 
   factory MeteoApiData.fromJson(Map<String, dynamic> json) {
-    final current = json['current_weather'] ?? {};
-    final hourly = json['hourly'] ?? {};
-
-    List<double> clouds = [];
-    if (hourly.containsKey('cloud_cover')) {
-      clouds = (hourly['cloud_cover'] as List).map((e) => (e as num).toDouble()).toList();
+    // Načítanie hodinových pravdepodobností zrážok
+    List<int> probList = [];
+    if (json.containsKey('hourly') && json['hourly'].containsKey('precipitation_probability')) {
+      final rawList = json['hourly']['precipitation_probability'] as List<dynamic>;
+      probList = rawList.map((e) => (e as num).toInt()).toList();
     }
 
-    List<double> precip = [];
-    if (hourly.containsKey('precipitation_probability')) {
-      precip = (hourly['precipitation_probability'] as List).map((e) => (e as num).toDouble()).toList();
+    // Načítanie smeru vetra
+    double? windDir;
+    if (json.containsKey('hourly') && json['hourly'].containsKey('winddirection_10m')) {
+      final rawDir = json['hourly']['winddirection_10m'] as List<dynamic>;
+      if (rawDir.isNotEmpty) {
+        windDir = (rawDir.first as num).toDouble();
+      }
+    } else if (json.containsKey('current_weather') && json['current_weather'].containsKey('winddirection')) {
+      windDir = (json['current_weather']['winddirection'] as num).toDouble();
     }
 
-    List<int> codes = [];
-    if (hourly.containsKey('weathercode')) {
-      codes = (hourly['weathercode'] as List).map((e) => (e as num).toInt()).toList();
-    }
+    final currentWeather = json['current_weather'] ?? {};
 
     return MeteoApiData(
-      currentTemp: (current['temperature'] as num?)?.toDouble() ?? 0.0,
-      currentPressure: (current['pressure'] as num?)?.toDouble() ?? 1013.25,
-      hourlyClouds: clouds,
-      hourlyPrecipProb: precip,
-      hourlyWeatherCodes: codes,
+      currentTemp: (currentWeather['temperature'] as num?)?.toDouble() ?? 0.0,
+      currentPressure: (currentWeather['pressure'] as num?)?.toDouble() ?? 1013.25,
+      windSpeed: (currentWeather['windspeed'] as num?)?.toDouble() ?? 0.0,
+      windDirection: windDir,
+      hourlyPrecipitationProb: probList,
     );
   }
+}
+
+class PressurePoint {
+  final DateTime timestamp;
+  final double pressure;
+
+  PressurePoint({
+    required this.timestamp,
+    required this.pressure,
+  });
 }
 
 class BarometerState {
   final double currentPressure;
   final double pressureChangeRate;
   final bool isMovingVertically;
-  final List<double> pressureHistory;
+  final List<PressurePoint> pressureHistory;
   final double estimatedAltitude;
   final double basePressure;
 
@@ -65,7 +75,7 @@ class BarometerState {
     double? currentPressure,
     double? pressureChangeRate,
     bool? isMovingVertically,
-    List<double>? pressureHistory,
+    List<PressurePoint>? pressureHistory,
     double? estimatedAltitude,
     double? basePressure,
   }) {
@@ -78,28 +88,4 @@ class BarometerState {
       basePressure: basePressure ?? this.basePressure,
     );
   }
-}
-
-class PresetLocation {
-  final String name;
-  final double lat;
-  final double lng;
-
-  const PresetLocation({
-    required this.name,
-    required this.lat,
-    required this.lng,
-  });
-}
-
-class CommunityMarker {
-  final String title;
-  final double lat;
-  final double lng;
-
-  CommunityMarker({
-    required this.title,
-    required this.lat,
-    required this.lng,
-  });
 }
