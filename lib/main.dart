@@ -112,7 +112,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _initSensors() {
-    // 1. Akcelerometer pre zistenie pohybu
+    // 1. Akcelerometer pre detekciu pohybu
     try {
       _accelSubscription = userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
         final now = DateTime.now();
@@ -131,7 +131,7 @@ class _MainScreenState extends State<MainScreen> {
       print('Akcelerometer nedostupný: $e');
     }
 
-    // 2. Barometer - správny odchyt cez top-level stream
+    // 2. Barometer z sensors_plus
     try {
       _pressureSubscription = barometerEventStream().listen((BarometerEvent event) {
         final double pressure = event.pressure;
