@@ -9,6 +9,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'components/header_bar.dart';
 import 'components/map_container.dart';
 import 'components/radar_widget.dart';
+import 'components/rain_arrival_widget.dart';
 import 'components/sensor_panel.dart';
 import 'components/windy_map_container.dart';
 import 'models/meteo_data.dart';
@@ -145,7 +146,7 @@ class _MainScreenState extends State<MainScreen> {
 
     try {
       final url = Uri.parse(
-        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation_probability,weathercode,cloud_cover,surface_pressure&forecast_hours=12',
+        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation_probability,weathercode,cloud_cover,surface_pressure,winddirection_10m&forecast_hours=12',
       );
 
       final response = await http.get(url);
@@ -279,6 +280,11 @@ class _MainScreenState extends State<MainScreen> {
                             _fetchWeatherData();
                           },
                         ),
+                      const SizedBox(height: 16),
+                      RainArrivalWidget(
+                        meteoData: _meteoData,
+                        loading: _isLoadingMeteo,
+                      ),
                       const SizedBox(height: 16),
                       RadarWidget(
                         meteoData: _meteoData,
