@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package0:http/http.dart' as http; // opravené
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
