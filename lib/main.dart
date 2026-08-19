@@ -106,10 +106,11 @@ class _MainScreenState extends State<MainScreen> {
     _fetchWeatherData();
   }
 
-  // 2. Bezpečné počúvanie senzorov prispôsobené pre novší sensors_plus
+  // 2. Univerzálne spustenie senzorov
   void _initSensors() {
     try {
-      _accelSubscription = userAccelerometerEvents.listen((UserAccelerometerEvent event) {
+      // Akcelerometer cez univerzálnu inštanciu
+      _accelSubscription = userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
         final double motion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMoving = motion > 3.0;
         if (isMoving != _barometerState.isMovingVertically) {
@@ -117,13 +118,14 @@ class _MainScreenState extends State<MainScreen> {
             _barometerState = _barometerState.copyWith(isMovingVertically: isMoving);
           });
         }
-      });
+      }, onError: (e) => debugPrint('Akcelerometer chyba: $e'));
     } catch (e) {
       debugPrint('Akcelerometer nedostupný: $e');
     }
 
     try {
-      _pressureSubscription = barometerEvents.listen((BarometerEvent event) {
+      // Barometer volaný cez hlavnú triedu
+      _pressureSubscription = Sensors().barometerEventStream().listen((BarometerEvent event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
           history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
@@ -136,7 +138,7 @@ class _MainScreenState extends State<MainScreen> {
             );
           });
         }
-      });
+      }, onError: (e) => debugPrint('Barometer chyba: $e'));
     } catch (e) {
       debugPrint('Barometer nedostupný: $e');
     }
