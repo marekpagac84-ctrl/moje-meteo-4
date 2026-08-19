@@ -20,54 +20,57 @@ class HeaderBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    PresetLocation? selectedPreset;
+    try {
+      selectedPreset = MeteoService.presetLocations.firstWhere(
+        (p) => p.name == currentLocationName,
+      );
+    } catch (_) {
+      selectedPreset = null;
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: const Color(0xFF1E293B),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.location_on, color: Colors.redAccent),
-              const SizedBox(width: 6),
-              DropdownButton<PresetLocation>(
-                dropdownColor: const Color(0xFF1E293B),
-                underline: const SizedBox(),
-                value: MeteoService.presetLocations.any((p) => p.name == currentLocationName)
-                    ? MeteoService.presetLocations.firstWhere((p) => p.name == currentLocationName)
-                    : null,
-                hint: Text(
-                  currentLocationName,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-                items: MeteoService.presetLocations.map((p) {
-                  return DropdownMenuItem<PresetLocation>(
-                    value: p,
-                    child: Text(p.name, style: const TextStyle(color: Colors.white)),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  if (val != null) onSelectPreset(val);
-                },
+          Expanded(
+            child: DropdownButton<PresetLocation>(
+              value: selectedPreset,
+              hint: Text(
+                currentLocationName,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
+              dropdownColor: const Color(0xFF1E293B),
+              isExpanded: true,
+              underline: const SizedBox(),
+              icon: const Icon(Icons.arrow_drop_down, color: Colors.cyanAccent),
+              items: MeteoService.presetLocations.map((PresetLocation p) {
+                return DropdownMenuItem<PresetLocation>(
+                  value: p,
+                  child: Text(p.name, style: const TextStyle(color: Colors.white)),
+                );
+              }).toList(),
+              onChanged: (PresetLocation? newLoc) {
+                if (newLoc != null) {
+                  onSelectPreset(newLoc);
+                }
+              },
+            ),
           ),
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.my_location, color: Colors.blueAccent),
-                onPressed: onUseGps,
-                tooltip: 'Použiť GPS',
-              ),
-              IconButton(
-                icon: Icon(
-                  showRadarOverlay ? Icons.layers : Icons.layers_clear,
-                  color: Colors.amber,
-                ),
-                onPressed: onToggleRadar,
-                tooltip: 'Prepnúť radar',
-              ),
-            ],
+          IconButton(
+            icon: const Icon(Icons.my_location, color: Colors.cyanAccent),
+            onPressed: onUseGps,
+            tooltip: 'Použiť GPS polohu',
+          ),
+          IconButton(
+            icon: Icon(
+              showRadarOverlay ? Icons.radar : Icons.radar_outlined,
+              color: showRadarOverlay ? Colors.lightBlueAccent : Colors.white38,
+            ),
+            onPressed: onToggleRadar,
+            tooltip: 'Prepnúť radarový prekryv',
           ),
         ],
       ),
