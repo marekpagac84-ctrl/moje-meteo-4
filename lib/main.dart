@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'models/meteo_data.dart';
 import 'components/header_bar.dart';
@@ -304,7 +305,7 @@ class _MainScreenState extends State<MainScreen> {
                             ? WindyMapContainer(lat: _lat, lng: _lng)
                             : (_showRadar
                                 ? RadarWidget(lat: _lat, lng: _lng)
-                                : MapContainer(center: LatLng(_lat, _lng)),
+                                : MapContainer(center: LatLng(_lat, _lng))),
                       ),
                     ),
                   ],
