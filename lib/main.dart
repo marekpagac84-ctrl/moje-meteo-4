@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
-import 'package:sensors_plus/sensors_plus.dart' as sensors_lib;
+import 'package:sensors_plus/sensors_plus.dart';
 
 import 'models/meteo_data.dart';
 import 'components/header_bar.dart';
@@ -14,6 +14,51 @@ import 'components/map_container.dart';
 import 'components/radar_widget.dart';
 import 'components/rain_arrival_widget.dart';
 import 'components/windy_map_container.dart';
+
+// --- AK TI TIETO TRIEDY CHÝBAJÚ V MODELS, MUSIA BYŤ DEFINOVANÉ TU ---
+class PressurePoint {
+  final DateTime timestamp;
+  final double pressure;
+
+  PressurePoint({required this.timestamp, required this.pressure});
+}
+
+class BarometerState {
+  final double currentPressure;
+  final double pressureChangeRate;
+  final bool isMovingVertically;
+  final List<PressurePoint> pressureHistory;
+  final double estimatedAltitude;
+  final double basePressure;
+
+  BarometerState({
+    required this.currentPressure,
+    required this.pressureChangeRate,
+    required this.isMovingVertically,
+    required this.pressureHistory,
+    required this.estimatedAltitude,
+    required this.basePressure,
+  });
+
+  BarometerState copyWith({
+    double? currentPressure,
+    double? pressureChangeRate,
+    bool? isMovingVertically,
+    List<PressurePoint>? pressureHistory,
+    double? estimatedAltitude,
+    double? basePressure,
+  }) {
+    return BarometerState(
+      currentPressure: currentPressure ?? this.currentPressure,
+      pressureChangeRate: pressureChangeRate ?? this.pressureChangeRate,
+      isMovingVertically: isMovingVertically ?? this.isMovingVertically,
+      pressureHistory: pressureHistory ?? this.pressureHistory,
+      estimatedAltitude: estimatedAltitude ?? this.estimatedAltitude,
+      basePressure: basePressure ?? this.basePressure,
+    );
+  }
+}
+// ---------------------------------------------------------------------
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,8 +107,8 @@ class _MainScreenState extends State<MainScreen> {
     basePressure: 1013.25,
   );
 
-  StreamSubscription? _accelSubscription;
-  StreamSubscription? _pressureSubscription;
+  StreamSubscription<UserAccelerometerEvent>? _accelSubscription;
+  StreamSubscription<BarometerEvent>? _pressureSubscription;
 
   @override
   void initState() {
@@ -89,7 +134,7 @@ class _MainScreenState extends State<MainScreen> {
         }
         if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
           Position position = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.high,
+            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
           );
           setState(() {
             _lat = position.latitude;
@@ -138,6 +183,7 @@ class _MainScreenState extends State<MainScreen> {
       debugPrint('Barometer not available: $e');
     }
   }
+
   Future<void> _fetchWeatherData() async {
     setState(() => _isLoadingMeteo = true);
     try {
