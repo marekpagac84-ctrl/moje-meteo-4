@@ -106,34 +106,60 @@ class _MainScreenState extends State<MainScreen> {
 
   void _initSensors() {
     try {
-      _accelSubscription = userAccelerometerEventStream().listen((event) {
-        final double motion = event.x.abs() + event.y.abs() + event.z.abs();
-        final bool isMoving = motion > 3.0;
-        if (isMoving != _barometerState.isMovingVertically) {
-          setState(() {
-            _barometerState = _barometerState.copyWith(isMovingVertically: isMoving);
-          });
-        }
-      }, onError: (e) => debugPrint('Accelerometer error: $e'));
+      _accelSubscription = userAccelerometerEventStream().listen(
+        (event) {
+          final double motion = event.x.abs() + event.y.abs() + event.z.abs();
+          final bool isMoving = motion > 3.0;
+          if (isMoving != _barometerState.isMovingVertically) {
+            setState(() {
+              _barometerState = _barometerState.copyWith(isMovingVertically: isMoving);
+            });
+          }
+        },
+        onError: (e) => debugPrint('Accelerometer error: $e'),
+      );
     } catch (e) {
       debugPrint('Accelerometer not available: $e');
     }
 
     try {
-      _pressureSubscription = barometerEventStream().listen((event) {
-        if (event.pressure > 0) {
-          List<PressurePoint> history = List.from(_barometerState.pressureHistory);
-          history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
-          if (history.length > 20) history.removeAt(0);
+      _pressureSubscription = barometerEventStream().listen(
+        (event) {
+          final double newPressure = event.pressure;
 
-          setState(() {
-            _barometerState = _barometerState.copyWith(
-              currentPressure: event.pressure,
-              pressureHistory: history,
-            );
-          });
-        }
-      }, onError: (e) => debugPrint('Barometer error: $e'));
+          if (newPressure > 0) {
+            setState(() {
+              List<PressurePoint> history = List.from(_barometerState.pressureHistory);
+              
+              // Vypočítame zmenu tlaku oproti poslednej hodnote
+              final double rate = newPressure - _barometerState.currentPressure;
+
+              history.add(PressurePoint(
+                timestamp: DateTime.now(), 
+                pressure: newPressure,
+              ));
+              
+              if (history.length > 20) {
+                history.removeAt(0);
+              }
+
+              // Výpočet odhadovanej výšky od základného tlaku (1 hPa ≈ 8.43 m)
+              final double base = _barometerState.basePressure > 0 
+                  ? _barometerState.basePressure 
+                  : newPressure;
+              final double altitude = (base - newPressure) * 8.43;
+
+              _barometerState = _barometerState.copyWith(
+                currentPressure: newPressure,
+                pressureChangeRate: rate,
+                estimatedAltitude: altitude,
+                pressureHistory: history,
+              );
+            });
+          }
+        },
+        onError: (e) => debugPrint('Barometer error: $e'),
+      );
     } catch (e) {
       debugPrint('Barometer not available: $e');
     }
@@ -215,6 +241,7 @@ class _MainScreenState extends State<MainScreen> {
                       onResetSensors: () => setState(() => _barometerState = _barometerState.copyWith(
                         basePressure: _barometerState.currentPressure,
                         pressureChangeRate: 0.0,
+                        estimatedAltitude: 0.0,
                       )),
                     ),
                     const SizedBox(height: 12),
