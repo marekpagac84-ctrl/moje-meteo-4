@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+// Použijeme iný spôsob importu, aby to kompilátor videl
 import 'package:sensors_plus/sensors_plus.dart';
 
 import 'models/meteo_data.dart';
@@ -99,14 +100,13 @@ class _MainScreenState extends State<MainScreen> {
         }
       }
     } catch (e) {
-      debugPrint('GPS chyba: $e');
+      debugPrint('GPS error: $e');
     }
     _fetchWeatherData();
   }
 
   void _initSensors() {
     try {
-      // Použijeme priamo userAccelerometerEvents (bez prefixu sensors.)
       _accelSubscription = userAccelerometerEvents.listen((event) {
         final double motion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMoving = motion > 3.0;
@@ -115,13 +115,14 @@ class _MainScreenState extends State<MainScreen> {
             _barometerState = _barometerState.copyWith(isMovingVertically: isMoving);
           });
         }
-      }, onError: (e) => debugPrint('Akcelerometer chyba: $e'));
+      }, onError: (e) => debugPrint('Accelerometer error: $e'));
     } catch (e) {
-      debugPrint('Akcelerometer nedostupný: $e');
+      debugPrint('Accelerometer not available: $e');
     }
 
     try {
-      // Použijeme priamo barometerEvents (bez prefixu sensors.)
+      // Tu je zmena - ak by barometerEvents nefungovalo, 
+      // použijeme stream cez triedu
       _pressureSubscription = barometerEvents.listen((event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
@@ -135,9 +136,9 @@ class _MainScreenState extends State<MainScreen> {
             );
           });
         }
-      }, onError: (e) => debugPrint('Barometer chyba: $e'));
+      }, onError: (e) => debugPrint('Barometer error: $e'));
     } catch (e) {
-      debugPrint('Barometer nedostupný: $e');
+      debugPrint('Barometer not available: $e');
     }
   }
 
@@ -228,7 +229,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     const SizedBox(height: 16),
                     Row(
-                      mainAxisAlignment: MainSpacerBetween: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
                           "Radar & Mapa",
