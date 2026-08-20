@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart0:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -106,7 +106,7 @@ class _MainScreenState extends State<MainScreen> {
 
   void _initSensors() {
     try {
-      _accelSubscription = userAccelerometerEvents.listen((event) {
+      _accelSubscription = UserAccelerometer().userAccelerometerEventStream.listen((event) {
         final double motion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMoving = motion > 3.0;
         if (isMoving != _barometerState.isMovingVertically) {
@@ -120,7 +120,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     try {
-      _pressureSubscription = barometerEvents.listen((event) {
+      _pressureSubscription = Barometer().barometerEventStream.listen((event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
           history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
