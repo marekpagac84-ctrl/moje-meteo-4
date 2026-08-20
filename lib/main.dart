@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
-import 'package:sensors_plus/sensors_plus.dart';
+import 'package:sensors_plus/sensors_plus.dart' as sensors;
 
 import 'models/meteo_data.dart';
 import 'components/header_bar.dart';
@@ -106,7 +106,7 @@ class _MainScreenState extends State<MainScreen> {
 
   void _initSensors() {
     try {
-      _accelSubscription = UserAccelerometer().userAccelerometerEventStream.listen((event) {
+      _accelSubscription = sensors.userAccelerometerEventStream().listen((event) {
         final double motion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMoving = motion > 3.0;
         if (isMoving != _barometerState.isMovingVertically) {
@@ -120,7 +120,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     try {
-      _pressureSubscription = Barometer().barometerEventStream.listen((event) {
+      _pressureSubscription = sensors.barometerEventStream().listen((event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
           history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
