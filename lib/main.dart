@@ -120,7 +120,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     try {
-      _pressureSubscription = barometerEvents.listen((event) {
+      _pressureSubscription = sensors.barometerEventStream().listen((event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
           history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
@@ -226,7 +226,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     const SizedBox(height: 16),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainSpacerBetween: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
                           "Radar & Mapa",
