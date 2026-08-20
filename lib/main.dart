@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
-import 'package:sensors_plus/sensors_plus.dart';
+import 'package:sensors_plus/sensors_plus.dart' as sensors_lib;
 
 import 'models/meteo_data.dart';
 import 'components/header_bar.dart';
@@ -99,14 +99,14 @@ class _MainScreenState extends State<MainScreen> {
         }
       }
     } catch (e) {
-      debugPrint('GPS chyba: $e');
+      debugPrint('GPS error: $e');
     }
     _fetchWeatherData();
   }
 
   void _initSensors() {
     try {
-      _accelSubscription = userAccelerometerEventStream().listen((event) {
+      _accelSubscription = sensors_lib.userAccelerometerEventStream().listen((event) {
         final double motion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMoving = motion > 3.0;
         if (isMoving != _barometerState.isMovingVertically) {
@@ -114,13 +114,13 @@ class _MainScreenState extends State<MainScreen> {
             _barometerState = _barometerState.copyWith(isMovingVertically: isMoving);
           });
         }
-      }, onError: (e) => debugPrint('Akcelerometer chyba: $e'));
+      }, onError: (e) => debugPrint('Accelerometer error: $e'));
     } catch (e) {
-      debugPrint('Akcelerometer nedostupný: $e');
+      debugPrint('Accelerometer not available: $e');
     }
 
     try {
-      _pressureSubscription = barometerEventStream().listen((event) {
+      _pressureSubscription = sensors_lib.barometerEventStream().listen((event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
           history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
@@ -133,9 +133,9 @@ class _MainScreenState extends State<MainScreen> {
             );
           });
         }
-      }, onError: (e) => debugPrint('Barometer chyba: $e'));
+      }, onError: (e) => debugPrint('Barometer error: $e'));
     } catch (e) {
-      debugPrint('Barometer nedostupný: $e');
+      debugPrint('Barometer not available: $e');
     }
   }
 
