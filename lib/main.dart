@@ -120,7 +120,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     try {
-      _pressureSubscription = barometerEventStream().listen((event) {
+      _pressureSubscription = barometerEvents.listen((event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
           history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
