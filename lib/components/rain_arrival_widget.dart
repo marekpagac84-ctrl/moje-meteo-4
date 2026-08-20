@@ -11,17 +11,64 @@ class RainArrivalWidget extends StatelessWidget {
     required this.isLoading,
   });
 
+  String _formatRainTime(int totalMinutes) {
+    if (totalMinutes == 0) {
+      return "Práve prší alebo začína pršať!";
+    }
+
+    final hours = totalMinutes ~/ 60;
+    final remMins = totalMinutes % 60;
+
+    String hoursText = '';
+    if (hours > 0) {
+      if (hours == 1) {
+        hoursText = "1 hod";
+      } else if (hours >= 2 && hours <= 4) {
+        hoursText = "$hours hodiny";
+      } else {
+        hoursText = "$hours hodín";
+      }
+    }
+
+    String minsText = '';
+    if (remMins > 0 || hours == 0) {
+      if (remMins == 1) {
+        minsText = "1 minútu";
+      } else if (remMins >= 2 && remMins <= 4) {
+        minsText = "$remMins minúty";
+      } else {
+        minsText = "$remMins minút";
+      }
+    }
+
+    final timeString = [
+      if (hoursText.isNotEmpty) hoursText,
+      if (minsText.isNotEmpty) minsText,
+    ].join(' ');
+
+    return "Dážď sa očakáva o cca $timeString";
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return Container(
-        padding: const EdgeInsets.all(16),
+        width: double.infinity,
+        height: 72,
         decoration: BoxDecoration(
           color: const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white12),
         ),
         child: const Center(
-          child: CircularProgressIndicator(color: Colors.blueAccent),
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              color: Colors.blueAccent,
+              strokeWidth: 2.5,
+            ),
+          ),
         ),
       );
     }
@@ -30,20 +77,14 @@ class RainArrivalWidget extends StatelessWidget {
     IconData icon = Icons.wb_sunny;
     Color iconColor = Colors.amber;
 
-    if (meteoData != null && meteoData!.rainArrivalMinutes != null) {
+    if (meteoData?.rainArrivalMinutes != null) {
       final mins = meteoData!.rainArrivalMinutes!;
+      rainInfo = _formatRainTime(mins);
+
       if (mins == 0) {
-        rainInfo = "Práve prší alebo začína pršať!";
         icon = Icons.umbrella;
         iconColor = Colors.lightBlue;
       } else if (mins > 0) {
-        final hours = mins ~/ 60;
-        final remMins = mins % 60;
-        if (hours > 0) {
-          rainInfo = "Dážď sa očakáva o cca $hours h $remMins min";
-        } else {
-          rainInfo = "Dážď sa očakáva o cca $remMins minút";
-        }
         icon = Icons.grain;
         iconColor = Colors.lightBlueAccent;
       }
