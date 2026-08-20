@@ -304,7 +304,7 @@ class _MainScreenState extends State<MainScreen> {
                             ? WindyMapContainer(lat: _lat, lng: _lng)
                             : (_showRadar
                                 ? RadarWidget(lat: _lat, lng: _lng)
-                                : MapContainer(lat: _lat, lng: _lng)),
+                                : MapContainer(center: LatLng(_lat, _lng)),
                       ),
                     ),
                   ],
