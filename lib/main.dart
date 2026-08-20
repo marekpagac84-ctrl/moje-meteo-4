@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
-// Použijeme iný spôsob importu, aby to kompilátor videl
 import 'package:sensors_plus/sensors_plus.dart';
 
 import 'models/meteo_data.dart';
@@ -100,14 +99,14 @@ class _MainScreenState extends State<MainScreen> {
         }
       }
     } catch (e) {
-      debugPrint('GPS error: $e');
+      debugPrint('GPS chyba: $e');
     }
     _fetchWeatherData();
   }
 
   void _initSensors() {
     try {
-      _accelSubscription = userAccelerometerEvents.listen((event) {
+      _accelSubscription = userAccelerometerEventStream().listen((event) {
         final double motion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMoving = motion > 3.0;
         if (isMoving != _barometerState.isMovingVertically) {
@@ -115,13 +114,13 @@ class _MainScreenState extends State<MainScreen> {
             _barometerState = _barometerState.copyWith(isMovingVertically: isMoving);
           });
         }
-      }, onError: (e) => debugPrint('Accelerometer error: $e'));
+      }, onError: (e) => debugPrint('Akcelerometer chyba: $e'));
     } catch (e) {
-      debugPrint('Accelerometer not available: $e');
+      debugPrint('Akcelerometer nedostupný: $e');
     }
 
     try {
-      _pressureSubscription = sensors_lib.barometerEventStream().listen((event) {
+      _pressureSubscription = barometerEventStream().listen((event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
           history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
@@ -134,10 +133,12 @@ class _MainScreenState extends State<MainScreen> {
             );
           });
         }
-      }, onError: (e) => debugPrint('Barometer error: $e'));
+      }, onError: (e) => debugPrint('Barometer chyba: $e'));
     } catch (e) {
-      debugPrint('Barometer not available: $e');
+      debugPrint('Barometer nedostupný: $e');
     }
+  }
+
   Future<void> _fetchWeatherData() async {
     setState(() => _isLoadingMeteo = true);
     try {
