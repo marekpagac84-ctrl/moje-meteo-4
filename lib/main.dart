@@ -15,51 +15,6 @@ import 'components/radar_widget.dart';
 import 'components/rain_arrival_widget.dart';
 import 'components/windy_map_container.dart';
 
-// --- AK TI TIETO TRIEDY CHÝBAJÚ V MODELS, MUSIA BYŤ DEFINOVANÉ TU ---
-class PressurePoint {
-  final DateTime timestamp;
-  final double pressure;
-
-  PressurePoint({required this.timestamp, required this.pressure});
-}
-
-class BarometerState {
-  final double currentPressure;
-  final double pressureChangeRate;
-  final bool isMovingVertically;
-  final List<PressurePoint> pressureHistory;
-  final double estimatedAltitude;
-  final double basePressure;
-
-  BarometerState({
-    required this.currentPressure,
-    required this.pressureChangeRate,
-    required this.isMovingVertically,
-    required this.pressureHistory,
-    required this.estimatedAltitude,
-    required this.basePressure,
-  });
-
-  BarometerState copyWith({
-    double? currentPressure,
-    double? pressureChangeRate,
-    bool? isMovingVertically,
-    List<PressurePoint>? pressureHistory,
-    double? estimatedAltitude,
-    double? basePressure,
-  }) {
-    return BarometerState(
-      currentPressure: currentPressure ?? this.currentPressure,
-      pressureChangeRate: pressureChangeRate ?? this.pressureChangeRate,
-      isMovingVertically: isMovingVertically ?? this.isMovingVertically,
-      pressureHistory: pressureHistory ?? this.pressureHistory,
-      estimatedAltitude: estimatedAltitude ?? this.estimatedAltitude,
-      basePressure: basePressure ?? this.basePressure,
-    );
-  }
-}
-// ---------------------------------------------------------------------
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
@@ -134,7 +89,7 @@ class _MainScreenState extends State<MainScreen> {
         }
         if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
           Position position = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+            desiredAccuracy: LocationAccuracy.high,
           );
           setState(() {
             _lat = position.latitude;
