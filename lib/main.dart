@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
-import 'package:latlong2/latlong.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 import 'models/meteo_data.dart';
@@ -87,10 +86,12 @@ class _MainScreenState extends State<MainScreen> {
         if (permission == LocationPermission.denied) {
           permission = await Geolocator.requestPermission();
         }
-        if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        if (permission == LocationPermission.whileInUse ||
+            permission == LocationPermission.always) {
           Position position = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.high,
           );
+          if (!mounted) return;
           setState(() {
             _lat = position.latitude;
             _lng = position.longitude;
@@ -110,9 +111,10 @@ class _MainScreenState extends State<MainScreen> {
         (event) {
           final double motion = event.x.abs() + event.y.abs() + event.z.abs();
           final bool isMoving = motion > 3.0;
-          if (isMoving != _barometerState.isMovingVertically) {
+          if (isMoving != _barometerState.isMovingVertically && mounted) {
             setState(() {
-              _barometerState = _barometerState.copyWith(isMovingVertically: isMoving);
+              _barometerState =
+                  _barometerState.copyWith(isMovingVertically: isMoving);
             });
           }
         },
@@ -127,25 +129,27 @@ class _MainScreenState extends State<MainScreen> {
         (event) {
           final double newPressure = event.pressure;
 
-          if (newPressure > 0) {
+          if (newPressure > 0 && mounted) {
             setState(() {
-              List<PressurePoint> history = List.from(_barometerState.pressureHistory);
-              
-              // Vypočítame zmenu tlaku oproti poslednej hodnote
-              final double rate = newPressure - _barometerState.currentPressure;
+              List<PressurePoint> history =
+                  List.from(_barometerState.pressureHistory);
+
+              // Výpočet zmeny tlaku oproti poslednej hodnote
+              final double rate =
+                  newPressure - _barometerState.currentPressure;
 
               history.add(PressurePoint(
-                timestamp: DateTime.now(), 
+                timestamp: DateTime.now(),
                 pressure: newPressure,
               ));
-              
+
               if (history.length > 20) {
                 history.removeAt(0);
               }
 
               // Výpočet odhadovanej výšky od základného tlaku (1 hPa ≈ 8.43 m)
-              final double base = _barometerState.basePressure > 0 
-                  ? _barometerState.basePressure 
+              final double base = _barometerState.basePressure > 0
+                  ? _barometerState.basePressure
                   : newPressure;
               final double altitude = (base - newPressure) * 8.43;
 
@@ -166,7 +170,9 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _fetchWeatherData() async {
+    if (!mounted) return;
     setState(() => _isLoadingMeteo = true);
+
     try {
       final url = Uri.parse(
         'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation_probability,surface_pressure&forecast_hours=12',
@@ -177,12 +183,18 @@ class _MainScreenState extends State<MainScreen> {
         final Map<String, dynamic> data = json.decode(response.body);
         final meteo = MeteoApiData.fromJson(data);
 
+        if (!mounted) return;
         setState(() {
           _meteoData = meteo;
           _isLoadingMeteo = false;
         });
+      } else {
+        if (!mounted) return;
+        setState(() => _isLoadingMeteo = false);
       }
     } catch (e) {
+      debugPrint('Meteo API error: $e');
+      if (!mounted) return;
       setState(() => _isLoadingMeteo = false);
     }
   }
@@ -191,7 +203,10 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       final double newPressure = _barometerState.currentPressure - 3.5;
       List<PressurePoint> history = List.from(_barometerState.pressureHistory);
-      history.add(PressurePoint(timestamp: DateTime.now(), pressure: newPressure));
+      history.add(PressurePoint(
+        timestamp: DateTime.now(),
+        pressure: newPressure,
+      ));
 
       _barometerState = _barometerState.copyWith(
         currentPressure: newPressure,
@@ -238,11 +253,12 @@ class _MainScreenState extends State<MainScreen> {
                       barometer: _barometerState,
                       onSimulateDrop: _simulatePressureDrop,
                       onSimulateMotion: _simulateMotionToggle,
-                      onResetSensors: () => setState(() => _barometerState = _barometerState.copyWith(
-                        basePressure: _barometerState.currentPressure,
-                        pressureChangeRate: 0.0,
-                        estimatedAltitude: 0.0,
-                      )),
+                      onResetSensors: () => setState(() => _barometerState =
+                          _barometerState.copyWith(
+                            basePressure: _barometerState.currentPressure,
+                            pressureChangeRate: 0.0,
+                            estimatedAltitude: 0.0,
+                          )),
                     ),
                     const SizedBox(height: 12),
                     BarometerWarningWidget(barometer: _barometerState),
@@ -264,13 +280,16 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ),
                         TextButton.icon(
-                          onPressed: () => setState(() => _useWindyView = !_useWindyView),
+                          onPressed: () =>
+                              setState(() => _useWindyView = !_useWindyView),
                           icon: Icon(
                             _useWindyView ? Icons.map : Icons.thunderstorm,
                             color: Colors.blueAccent,
                           ),
                           label: Text(
-                            _useWindyView ? "Prepnúť na Základnú" : "Prepnúť na Windy",
+                            _useWindyView
+                                ? "Prepnúť na Základnú"
+                                : "Prepnúť na Windy",
                             style: const TextStyle(color: Colors.blueAccent),
                           ),
                         ),
@@ -285,7 +304,7 @@ class _MainScreenState extends State<MainScreen> {
                             ? WindyMapContainer(lat: _lat, lng: _lng)
                             : (_showRadar
                                 ? RadarWidget(lat: _lat, lng: _lng)
-                                : MapContainer(center: LatLng(_lat, _lng))),
+                                : MapContainer(lat: _lat, lng: _lng)),
                       ),
                     ),
                   ],
