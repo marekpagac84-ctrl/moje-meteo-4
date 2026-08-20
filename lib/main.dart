@@ -106,8 +106,7 @@ class _MainScreenState extends State<MainScreen> {
 
   void _initSensors() {
     try {
-      // Správny zápis výhradne pre sensors_plus 5.0.0
-      _accelSubscription = UserAccelerometer().userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
+      _accelSubscription = userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
         final double motion = event.x.abs() + event.y.abs() + event.z.abs();
         final bool isMoving = motion > 3.0;
         if (isMoving != _barometerState.isMovingVertically) {
@@ -121,8 +120,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     try {
-      // Správny zápis výhradne pre sensors_plus 5.0.0
-      _pressureSubscription = Barometer().barometerEventStream().listen((BarometerEvent event) {
+      _pressureSubscription = barometerEventStream().listen((BarometerEvent event) {
         if (event.pressure > 0) {
           List<PressurePoint> history = List.from(_barometerState.pressureHistory);
           history.add(PressurePoint(timestamp: DateTime.now(), pressure: event.pressure));
