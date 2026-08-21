@@ -49,6 +49,9 @@ class _MainScreenState extends State<MainScreen> {
   bool _isLoadingMeteo = false;
   MeteoApiData? _meteoData;
 
+  int _currentPage = 0;
+  final PageController _pageController = PageController();
+
   double _lat = 48.7576;
   double _lng = 17.8309;
   String _locationName = 'Nové Mesto nad Váhom';
@@ -74,6 +77,7 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   void dispose() {
+    _pageController.dispose();
     _accelSubscription?.cancel();
     _pressureSubscription?.cancel();
     super.dispose();
@@ -135,7 +139,6 @@ class _MainScreenState extends State<MainScreen> {
               List<PressurePoint> history =
                   List.from(_barometerState.pressureHistory);
 
-              // Výpočet zmeny tlaku oproti poslednej hodnote
               final double rate =
                   newPressure - _barometerState.currentPressure;
 
@@ -148,7 +151,6 @@ class _MainScreenState extends State<MainScreen> {
                 history.removeAt(0);
               }
 
-              // Výpočet odhadovanej výšky od základného tlaku (1 hPa ≈ 8.43 m)
               final double base = _barometerState.basePressure > 0
                   ? _barometerState.basePressure
                   : newPressure;
@@ -176,7 +178,7 @@ class _MainScreenState extends State<MainScreen> {
 
     try {
       final url = Uri.parse(
-        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation_probability,surface_pressure&forecast_hours=12',
+        'https://api.open-meteo.com/v1/forecast?latitude=$_lat&longitude=$_lng&current_weather=true&hourly=precipitation_probability,precipitation,wind_direction_10m,surface_pressure&forecast_hours=12',
       );
       final response = await http.get(url);
 
@@ -225,6 +227,92 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  // Funkcia na otvorenie plnej mapy
+  void _openFullMap() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulWidget(
+          builder: (context, setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.88,
+              decoration: const BoxDecoration(
+                color: Color(0xFF1E293B),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Živá radarová mapa",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            TextButton.icon(
+                              onPressed: () {
+                                setModalState(() {
+                                  _useWindyView = !_useWindyView;
+                                });
+                                setState(() {});
+                              },
+                              icon: Icon(
+                                _useWindyView
+                                    ? Icons.map
+                                    : Icons.thunderstorm,
+                                color: Colors.blueAccent,
+                                size: 18,
+                              ),
+                              label: Text(
+                                _useWindyView ? "Základná" : "Windy",
+                                style: const TextStyle(
+                                  color: Colors.blueAccent,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded,
+                                  color: Colors.white70),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: Colors.white12),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                          bottom: Radius.circular(20)),
+                      child: _useWindyView
+                          ? WindyMapContainer(lat: _lat, lng: _lng)
+                          : (_showRadar
+                              ? RadarWidget(lat: _lat, lng: _lng)
+                              : MapContainer(center: LatLng(_lat, _lng))),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -246,70 +334,79 @@ class _MainScreenState extends State<MainScreen> {
               onToggleRadar: () => setState(() => _showRadar = !_showRadar),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    SensorPanel(
-                      barometer: _barometerState,
-                      onSimulateDrop: _simulatePressureDrop,
-                      onSimulateMotion: _simulateMotionToggle,
-                      onResetSensors: () => setState(() => _barometerState =
-                          _barometerState.copyWith(
-                            basePressure: _barometerState.currentPressure,
-                            pressureChangeRate: 0.0,
-                            estimatedAltitude: 0.0,
-                          )),
-                    ),
-                    const SizedBox(height: 12),
-                    BarometerWarningWidget(barometer: _barometerState),
-                    const SizedBox(height: 16),
-                    RainArrivalWidget(
-                      meteoData: _meteoData,
-                      isLoading: _isLoadingMeteo,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: PageView(
+                      controller: _pageController,
+                      onPageChanged: (index) {
+                        setState(() {
+                          _currentPage = index;
+                        });
+                      },
                       children: [
-                        const Text(
-                          "Radar & Mapa",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        // Karta 1: Predpoveď zrážok
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: SingleChildScrollView(
+                            child: RainArrivalWidget(
+                              meteoData: _meteoData,
+                              isLoading: _isLoadingMeteo,
+                              onRefresh: _fetchWeatherData,
+                              onOpenMap: _openFullMap,
+                            ),
                           ),
                         ),
-                        TextButton.icon(
-                          onPressed: () =>
-                              setState(() => _useWindyView = !_useWindyView),
-                          icon: Icon(
-                            _useWindyView ? Icons.map : Icons.thunderstorm,
-                            color: Colors.blueAccent,
-                          ),
-                          label: Text(
-                            _useWindyView
-                                ? "Prepnúť na Základnú"
-                                : "Prepnúť na Windy",
-                            style: const TextStyle(color: Colors.blueAccent),
+
+                        // Karta 2: Senzory zariadenia & Barometer
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                SensorPanel(
+                                  barometer: _barometerState,
+                                  onSimulateDrop: _simulatePressureDrop,
+                                  onSimulateMotion: _simulateMotionToggle,
+                                  onResetSensors: () => setState(() =>
+                                      _barometerState = _barometerState.copyWith(
+                                        basePressure:
+                                            _barometerState.currentPressure,
+                                        pressureChangeRate: 0.0,
+                                        estimatedAltitude: 0.0,
+                                      )),
+                                ),
+                                const SizedBox(height: 12),
+                                BarometerWarningWidget(
+                                    barometer: _barometerState),
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      height: 350,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: _useWindyView
-                            ? WindyMapContainer(lat: _lat, lng: _lng)
-                            : (_showRadar
-                                ? RadarWidget(lat: _lat, lng: _lng)
-                                : MapContainer(center: LatLng(_lat, _lng))),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+
+                  // Indikátor stránok (bodky na spodku)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(2, (index) {
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 12),
+                        width: _currentPage == index ? 20 : 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _currentPage == index
+                              ? Colors.blueAccent
+                              : Colors.white24,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      );
+                    }),
+                  ),
+                ],
               ),
             ),
           ],
