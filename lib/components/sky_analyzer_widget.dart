@@ -23,7 +23,7 @@ Future<void> _initializeCamera() async {
 try {
 final cameras = await availableCameras();
 
-```
+
   if (cameras.isEmpty) {
     setState(() {
       _error = 'Zariadenie nemá dostupnú kameru.';
@@ -68,7 +68,7 @@ final cameras = await availableCameras();
     _isInitializing = false;
   });
 }
-```
+
 
 }
 
@@ -208,7 +208,7 @@ return Stack(
     ),
   ],
 );
-```
+
 
 }
 }
