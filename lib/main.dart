@@ -234,8 +234,8 @@ class _MainScreenState extends State<MainScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
-        return StatefulWidget(
-          builder: (context, setModalState) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
             return Container(
               height: MediaQuery.of(context).size.height * 0.88,
               decoration: const BoxDecoration(
@@ -265,7 +265,6 @@ class _MainScreenState extends State<MainScreen> {
                                 setModalState(() {
                                   _useWindyView = !_useWindyView;
                                 });
-                                setState(() {});
                               },
                               icon: Icon(
                                 _useWindyView
