@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -29,6 +28,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
   double _blueSky = 0.0;
   double _brightness = 0.0;
   double _darkClouds = 0.0;
+
+  double _cloudChange = 0.0;
 
   String _weatherResult = 'Čakám na analýzu';
   String _weatherDescription = '';
@@ -106,16 +107,19 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
       _capturedFrames = 0;
       _capturedImages.clear();
 
-      _cloudCoverage = 0;
-      _blueSky = 0;
-      _brightness = 0;
-      _darkClouds = 0;
+      _cloudCoverage = 0.0;
+      _blueSky = 0.0;
+      _brightness = 0.0;
+      _darkClouds = 0.0;
+      _cloudChange = 0.0;
 
       _weatherResult = 'Analyzujem...';
       _weatherDescription = '';
+      _error = null;
     });
 
     try {
+      // Nasnímajeme 5 záberov počas približne 5 sekúnd.
       for (int i = 0; i < 5; i++) {
         if (!mounted) return;
 
@@ -157,13 +161,17 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
   Future<void> _processImages() async {
     if (_capturedImages.isEmpty) {
-      return;
+      throw Exception(
+        'Neboli nasnímané žiadne obrázky.',
+      );
     }
 
-    double totalCloud = 0;
-    double totalBlue = 0;
-    double totalBrightness = 0;
-    double totalDark = 0;
+    double totalCloud = 0.0;
+    double totalBlue = 0.0;
+    double totalBrightness = 0.0;
+    double totalDark = 0.0;
+
+    final List<double> cloudValues = [];
 
     int validImages = 0;
 
@@ -178,12 +186,17 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
           continue;
         }
 
-        final analysis = await _analyzeImage(decoded);
+        final analysis =
+            await _analyzeImage(decoded);
 
         totalCloud += analysis.cloudCoverage;
         totalBlue += analysis.blueSky;
         totalBrightness += analysis.brightness;
         totalDark += analysis.darkClouds;
+
+        cloudValues.add(
+          analysis.cloudCoverage,
+        );
 
         validImages++;
       } catch (e) {
@@ -199,11 +212,24 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
       );
     }
 
-    final cloud = totalCloud / validImages;
-    final blue = totalBlue / validImages;
+    final cloud =
+        totalCloud / validImages;
+
+    final blue =
+        totalBlue / validImages;
+
     final brightness =
         totalBrightness / validImages;
-    final dark = totalDark / validImages;
+
+    final dark =
+        totalDark / validImages;
+
+    double cloudChange = 0.0;
+
+    if (cloudValues.length >= 2) {
+      cloudChange =
+          cloudValues.last - cloudValues.first;
+    }
 
     if (!mounted) return;
 
@@ -212,6 +238,7 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
       _blueSky = blue;
       _brightness = brightness;
       _darkClouds = dark;
+      _cloudChange = cloudChange;
 
       _calculateWeatherResult();
     });
@@ -224,65 +251,72 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
     int bluePixels = 0;
     int darkPixels = 0;
 
-    double brightnessSum = 0;
+    double brightnessSum = 0.0;
 
     int samples = 0;
 
     /*
-     * Nemusíme analyzovať každý pixel.
-     * Každý 8. pixel je dostatočný na rýchlu
-     * analýzu oblohy.
+     * Analyzujeme každý 8. pixel.
+     * Tým výrazne znížime zaťaženie telefónu,
+     * ale stále získame dostatok údajov.
      */
     for (int y = 0; y < image.height; y += 8) {
       for (int x = 0; x < image.width; x += 8) {
         final pixel = image.getPixel(x, y);
 
-        final r = pixel.r.toDouble();
-        final g = pixel.g.toDouble();
-        final b = pixel.b.toDouble();
+        final double r =
+            pixel.r.toDouble();
 
-        final maxValue =
-            math.max(r, math.max(g, b));
+        final double g =
+            pixel.g.toDouble();
 
-        final minValue =
-            math.min(r, math.min(g, b));
+        final double b =
+            pixel.b.toDouble();
 
-        final brightness =
+        final double maxValue =
+            math.max(
+              r,
+              math.max(g, b),
+            );
+
+        final double minValue =
+            math.min(
+              r,
+              math.min(g, b),
+            );
+
+        final double brightness =
             (r + g + b) / 3.0;
 
-        final saturation =
+        final double saturation =
             maxValue == 0
-                ? 0
+                ? 0.0
                 : (maxValue - minValue) /
                     maxValue;
 
         brightnessSum += brightness;
 
         /*
-         * Modrá obloha:
-         *
-         * modrá musí byť výraznejšia než
-         * červená a zelená.
+         * Detekcia modrej oblohy.
          */
-        final isBlue =
+        final bool isBlue =
             b > r * 1.15 &&
             b > g * 1.05 &&
             saturation > 0.12 &&
             brightness > 60;
 
         /*
-         * Biela/sivá oblačnosť:
-         *
-         * RGB hodnoty sú si relatívne blízke.
+         * Detekcia bielych alebo sivých oblastí,
+         * ktoré môžu predstavovať oblačnosť.
          */
-        final isCloud =
+        final bool isCloud =
             saturation < 0.18 &&
             brightness > 90;
 
         /*
-         * Tmavé mraky alebo veľmi tmavá obloha.
+         * Tmavé oblasti.
          */
-        final isDark =
+        final bool isDark =
             brightness < 75;
 
         if (isBlue) {
@@ -303,69 +337,130 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
     if (samples == 0) {
       return const _SkyAnalysis(
-        cloudCoverage: 0,
-        blueSky: 0,
-        brightness: 0,
-        darkClouds: 0,
+        cloudCoverage: 0.0,
+        blueSky: 0.0,
+        brightness: 0.0,
+        darkClouds: 0.0,
       );
     }
 
     return _SkyAnalysis(
       cloudCoverage:
-          cloudPixels / samples * 100,
+          cloudPixels / samples * 100.0,
       blueSky:
-          bluePixels / samples * 100,
+          bluePixels / samples * 100.0,
       brightness:
           brightnessSum / samples,
       darkClouds:
-          darkPixels / samples * 100,
+          darkPixels / samples * 100.0,
     );
   }
 
   void _calculateWeatherResult() {
-    final cloud = _cloudCoverage;
-    final blue = _blueSky;
-    final dark = _darkClouds;
-    final brightness = _brightness;
+    final double cloud =
+        _cloudCoverage;
 
-    if (dark > 35 && cloud > 35) {
-      _weatherResult = '🌧️ Veľmi zamračené';
+    final double blue =
+        _blueSky;
+
+    final double dark =
+        _darkClouds;
+
+    final double brightness =
+        _brightness;
+
+    /*
+     * Silná tmavá oblačnosť.
+     */
+    if (dark > 35 &&
+        cloud > 35) {
+      _weatherResult =
+          '🌧️ Veľmi zamračené';
 
       _weatherDescription =
-          'Obloha obsahuje veľké množstvo tmavých '
-          'a hustých oblastí. Podmienky môžu '
-          'zodpovedať blížiacemu sa dažďu.';
-    } else if (cloud > 70) {
-      _weatherResult = '☁️ Zamračené';
+          'Obloha obsahuje veľké množstvo '
+          'tmavých a hustých oblastí. '
+          'Môže ísť o dažďovú alebo búrkovú '
+          'oblačnosť.';
+    }
+
+    /*
+     * Veľmi vysoká oblačnosť.
+     */
+    else if (cloud > 70) {
+      _weatherResult =
+          '☁️ Zamračené';
 
       _weatherDescription =
           'Väčšina pozorovanej oblohy vykazuje '
           'znaky oblačnosti.';
-    } else if (cloud > 40) {
-      _weatherResult = '⛅ Polooblačno';
+    }
+
+    /*
+     * Stredná oblačnosť.
+     */
+    else if (cloud > 40) {
+      _weatherResult =
+          '⛅ Polooblačno';
 
       _weatherDescription =
           'Analýza ukazuje kombináciu oblačnosti '
           'a jasnej oblohy.';
-    } else if (blue > 45) {
-      _weatherResult = '☀️ Jasná obloha';
+    }
+
+    /*
+     * Veľa modrej oblohy.
+     */
+    else if (blue > 45) {
+      _weatherResult =
+          '☀️ Jasná obloha';
 
       _weatherDescription =
           'Výrazná časť snímok obsahuje modrú '
           'oblohu a nízku mieru oblačnosti.';
-    } else if (brightness < 80) {
-      _weatherResult = '🌥️ Tmavá obloha';
+    }
+
+    /*
+     * Tmavá scéna.
+     */
+    else if (brightness < 80) {
+      _weatherResult =
+          '🌥️ Tmavá obloha';
 
       _weatherDescription =
           'Obloha je výrazne tmavá. Môže ísť '
-          'o hustú oblačnosť alebo slabé svetelné '
-          'podmienky.';
-    } else {
-      _weatherResult = '🌤️ Premenlivá obloha';
+          'o hustú oblačnosť, večerné svetlo '
+          'alebo nedostatok osvetlenia.';
+    }
+
+    /*
+     * Nejednoznačný výsledok.
+     */
+    else {
+      _weatherResult =
+          '🌤️ Premenlivá obloha';
 
       _weatherDescription =
-          'Obrazová analýza nedokázala jednoznačne '
-          'zaradiť stav oblohy.';
+          'Obrazová analýza nedokázala '
+          'jednoznačne zaradiť stav oblohy.';
+    }
+
+    /*
+     * Ak sa oblačnosť počas snímania výrazne zvýšila,
+     * doplníme informáciu o vývoji.
+     */
+    if (_cloudChange > 15) {
+      _weatherDescription +=
+          ' Počas snímania sa oblačnosť '
+          'výrazne zvýšila.';
+    } else if (_cloudChange < -15) {
+      _weatherDescription +=
+          ' Počas snímania sa oblačnosť '
+          'mierne znižovala.';
+    } else {
+      _weatherDescription +=
+          ' Počas snímania bola oblačnosť '
+          'relatívne stabilná.';
     }
   }
 
@@ -375,22 +470,28 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
       backgroundColor:
           const Color(0xFF1E293B),
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
+      shape:
+          const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(
           top: Radius.circular(24),
         ),
       ),
       builder: (context) {
         return Padding(
-          padding: const EdgeInsets.all(24),
-          child: SingleChildScrollView(
+          padding:
+              const EdgeInsets.all(24),
+          child:
+              SingleChildScrollView(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize:
+                  MainAxisSize.min,
               children: [
                 const Icon(
                   Icons.cloud,
                   size: 55,
-                  color: Colors.blueAccent,
+                  color:
+                      Colors.blueAccent,
                 ),
 
                 const SizedBox(height: 12),
@@ -400,7 +501,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
 
@@ -408,11 +510,14 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
                 Text(
                   _weatherResult,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      const TextStyle(
                     color: Colors.white,
                     fontSize: 24,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
 
@@ -420,8 +525,10 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
                 Text(
                   _weatherDescription,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      const TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
                   ),
@@ -450,6 +557,12 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
                 ),
 
                 _buildResultRow(
+                  '📈 Zmena oblačnosti',
+                  '${_cloudChange >= 0 ? '+' : ''}'
+                  '${_cloudChange.toStringAsFixed(0)} %',
+                ),
+
+                _buildResultRow(
                   '📷 Snímky',
                   '$_capturedFrames / 5',
                 ),
@@ -459,17 +572,21 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
                 Container(
                   padding:
                       const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
+                  decoration:
+                      BoxDecoration(
                     color: Colors.black26,
                     borderRadius:
-                        BorderRadius.circular(12),
+                        BorderRadius.circular(
+                      12,
+                    ),
                   ),
                   child: const Text(
-                    'Toto je prvá obrazová verzia '
-                    'analýzy. V ďalšom kroku môžeme '
-                    'pridať skutočný AI model na '
-                    'rozpoznávanie oblakov.',
-                    textAlign: TextAlign.center,
+                    'Ide o prvú obrazovú analýzu '
+                    'oblohy. Výsledok je založený '
+                    'na farbe, jase a štruktúre '
+                    'snímok, nie na AI modeli.',
+                    textAlign:
+                        TextAlign.center,
                     style: TextStyle(
                       color: Colors.white60,
                       fontSize: 12,
@@ -480,11 +597,16 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
                 const SizedBox(height: 20),
 
                 SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
+                  width:
+                      double.infinity,
+                  child:
+                      ElevatedButton(
                     onPressed: () =>
-                        Navigator.pop(context),
-                    child: const Text('HOTOVO'),
+                        Navigator.pop(
+                      context,
+                    ),
+                    child:
+                        const Text('HOTOVO'),
                   ),
                 ),
               ],
@@ -506,21 +628,28 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
       ),
       child: Row(
         mainAxisAlignment:
-            MainAxisAlignment.spaceBetween,
+            MainAxisAlignment
+                .spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
+          Expanded(
+            child: Text(
+              label,
+              style:
+                  const TextStyle(
+                color:
+                    Colors.white70,
+                fontSize: 14,
+              ),
             ),
           ),
           Text(
             value,
-            style: const TextStyle(
+            style:
+                const TextStyle(
               color: Colors.white,
               fontSize: 15,
-              fontWeight: FontWeight.bold,
+              fontWeight:
+                  FontWeight.bold,
             ),
           ),
         ],
@@ -535,7 +664,9 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     if (_isInitializing) {
       return const Center(
         child: Column(
@@ -567,7 +698,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
                 MainAxisAlignment.center,
             children: [
               const Icon(
-                Icons.camera_alt_outlined,
+                Icons
+                    .camera_alt_outlined,
                 size: 60,
                 color: Colors.white54,
               ),
@@ -576,9 +708,12 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
               Text(
                 _error!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white70,
+                textAlign:
+                    TextAlign.center,
+                style:
+                    const TextStyle(
+                  color:
+                      Colors.white70,
                 ),
               ),
 
@@ -587,7 +722,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
               ElevatedButton.icon(
                 onPressed: () {
                   setState(() {
-                    _isInitializing = true;
+                    _isInitializing =
+                        true;
                     _error = null;
                   });
 
@@ -606,10 +742,12 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
       );
     }
 
-    final controller = _controller;
+    final controller =
+        _controller;
 
     if (controller == null ||
-        !controller.value.isInitialized) {
+        !controller.value
+            .isInitialized) {
       return const Center(
         child: Text(
           'Kamera nie je pripravená.',
@@ -623,7 +761,9 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        CameraPreview(controller),
+        CameraPreview(
+          controller,
+        ),
 
         Positioned(
           top: 16,
@@ -635,30 +775,41 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
               horizontal: 16,
               vertical: 12,
             ),
-            decoration: BoxDecoration(
-              color:
-                  Colors.black.withOpacity(0.55),
+            decoration:
+                BoxDecoration(
+              color: Colors.black
+                  .withOpacity(0.55),
               borderRadius:
-                  BorderRadius.circular(14),
+                  BorderRadius.circular(
+                14,
+              ),
             ),
-            child: const Column(
+            child:
+                const Column(
               children: [
                 Text(
                   'ANALÝZA OBLOHY',
-                  style: TextStyle(
-                    color: Colors.white,
+                  style:
+                      TextStyle(
+                    color:
+                        Colors.white,
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
 
                 SizedBox(height: 4),
 
                 Text(
-                  'Namierte telefón na oblohu',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white70,
+                  'Namierte telefón '
+                  'na oblohu',
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      TextStyle(
+                    color:
+                        Colors.white70,
                     fontSize: 14,
                   ),
                 ),
@@ -674,34 +825,50 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
             bottom: 110,
             child: Container(
               padding:
-                  const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color:
-                    Colors.black.withOpacity(0.70),
-                borderRadius:
-                    BorderRadius.circular(16),
+                  const EdgeInsets.all(
+                16,
               ),
-              child: Column(
+              decoration:
+                  BoxDecoration(
+                color: Colors.black
+                    .withOpacity(0.70),
+                borderRadius:
+                    BorderRadius.circular(
+                  16,
+                ),
+              ),
+              child:
+                  Column(
                 children: [
                   const CircularProgressIndicator(),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(
+                    height: 12,
+                  ),
 
                   const Text(
                     'Analyzujem oblohu...',
-                    style: TextStyle(
-                      color: Colors.white,
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white,
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
-                  const SizedBox(height: 6),
+                  const SizedBox(
+                    height: 6,
+                  ),
 
                   Text(
-                    'Snímka $_capturedFrames / 5',
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    'Snímka '
+                    '$_capturedFrames / 5',
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.white70,
                     ),
                   ),
                 ],
@@ -713,7 +880,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
           left: 24,
           right: 24,
           bottom: 24,
-          child: ElevatedButton.icon(
+          child:
+              ElevatedButton.icon(
             onPressed:
                 _isAnalyzing
                     ? null
@@ -731,13 +899,15 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
             style:
                 ElevatedButton.styleFrom(
               padding:
-                  const EdgeInsets.symmetric(
+                  const EdgeInsets
+                      .symmetric(
                 vertical: 16,
               ),
               textStyle:
                   const TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
           ),
