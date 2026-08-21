@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -9,10 +10,12 @@ class SkyAnalyzerWidget extends StatefulWidget {
   const SkyAnalyzerWidget({super.key});
 
   @override
-  State<SkyAnalyzerWidget> createState() => _SkyAnalyzerWidgetState();
+  State<SkyAnalyzerWidget> createState() =>
+      _SkyAnalyzerWidgetState();
 }
 
-class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
+class _SkyAnalyzerWidgetState
+    extends State<SkyAnalyzerWidget> {
   CameraController? _controller;
 
   bool _isInitializing = true;
@@ -31,7 +34,9 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
   double _cloudChange = 0.0;
 
-  String _weatherResult = 'Čakám na analýzu';
+  String _weatherResult =
+      'Čakám na analýzu';
+
   String _weatherDescription = '';
 
   @override
@@ -42,13 +47,15 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
   Future<void> _initializeCamera() async {
     try {
-      final cameras = await availableCameras();
+      final cameras =
+          await availableCameras();
 
       if (cameras.isEmpty) {
         if (!mounted) return;
 
         setState(() {
-          _error = 'Zariadenie nemá dostupnú kameru.';
+          _error =
+              'Zariadenie nemá dostupnú kameru.';
           _isInitializing = false;
         });
 
@@ -58,7 +65,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
       CameraDescription? selectedCamera;
 
       for (final camera in cameras) {
-        if (camera.lensDirection == CameraLensDirection.back) {
+        if (camera.lensDirection ==
+            CameraLensDirection.back) {
           selectedCamera = camera;
           break;
         }
@@ -66,7 +74,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
       selectedCamera ??= cameras.first;
 
-      final controller = CameraController(
+      final controller =
+          CameraController(
         selectedCamera,
         ResolutionPreset.medium,
         enableAudio: false,
@@ -87,7 +96,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
       if (!mounted) return;
 
       setState(() {
-        _error = 'Kameru sa nepodarilo spustiť: $e';
+        _error =
+            'Kameru sa nepodarilo spustiť: $e';
         _isInitializing = false;
       });
     }
@@ -104,7 +114,9 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
     setState(() {
       _isAnalyzing = true;
+
       _capturedFrames = 0;
+
       _capturedImages.clear();
 
       _cloudCoverage = 0.0;
@@ -113,17 +125,28 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
       _darkClouds = 0.0;
       _cloudChange = 0.0;
 
-      _weatherResult = 'Analyzujem...';
+      _weatherResult =
+          'Analyzujem...';
+
       _weatherDescription = '';
+
       _error = null;
     });
 
     try {
-      // Nasnímajeme 5 záberov počas približne 5 sekúnd.
-      for (int i = 0; i < 5; i++) {
+      /*
+       * Nasnímame 10 záberov.
+       *
+       * Jeden záber približne každú sekundu.
+       *
+       * Telefón teda nemusí používateľ držať
+       * na oblohe minúty.
+       */
+      for (int i = 0; i < 10; i++) {
         if (!mounted) return;
 
-        final image = await controller.takePicture();
+        final image =
+            await controller.takePicture();
 
         _capturedImages.add(image);
 
@@ -133,14 +156,27 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
           });
         }
 
-        if (i < 4) {
+        if (i < 9) {
           await Future.delayed(
-            const Duration(seconds: 1),
+            const Duration(
+              seconds: 1,
+            ),
           );
         }
       }
 
+      /*
+       * Spracovanie všetkých 10 záberov.
+       */
       await _processImages();
+
+      /*
+       * DÔLEŽITÉ:
+       *
+       * Po dokončení analýzy odstránime
+       * vytvorené dočasné súbory.
+       */
+      await _deleteCapturedImages();
 
       if (!mounted) return;
 
@@ -150,13 +186,44 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
       _showAnalysisResult();
     } catch (e) {
+      /*
+       * Aj pri chybe sa pokúsime vymazať
+       * už vytvorené obrázky.
+       */
+      await _deleteCapturedImages();
+
       if (!mounted) return;
 
       setState(() {
         _isAnalyzing = false;
-        _error = 'Analýza oblohy zlyhala: $e';
+
+        _error =
+            'Analýza oblohy zlyhala: $e';
       });
     }
+  }
+
+  Future<void> _deleteCapturedImages() async {
+    /*
+     * Prejdeme všetky vytvorené XFile
+     * a odstránime ich z dočasného úložiska.
+     */
+    for (final image
+        in List<XFile>.from(_capturedImages)) {
+      try {
+        final file = File(image.path);
+
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        debugPrint(
+          'Nepodarilo sa vymazať obrázok: $e',
+        );
+      }
+    }
+
+    _capturedImages.clear();
   }
 
   Future<void> _processImages() async {
@@ -175,12 +242,17 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
     int validImages = 0;
 
-    for (final cameraImage in _capturedImages) {
+    /*
+     * Spracujeme všetkých 10 záberov.
+     */
+    for (final cameraImage
+        in _capturedImages) {
       try {
         final Uint8List bytes =
             await cameraImage.readAsBytes();
 
-        final decoded = img.decodeImage(bytes);
+        final decoded =
+            img.decodeImage(bytes);
 
         if (decoded == null) {
           continue;
@@ -189,10 +261,17 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
         final analysis =
             await _analyzeImage(decoded);
 
-        totalCloud += analysis.cloudCoverage;
-        totalBlue += analysis.blueSky;
-        totalBrightness += analysis.brightness;
-        totalDark += analysis.darkClouds;
+        totalCloud +=
+            analysis.cloudCoverage;
+
+        totalBlue +=
+            analysis.blueSky;
+
+        totalBrightness +=
+            analysis.brightness;
+
+        totalDark +=
+            analysis.darkClouds;
 
         cloudValues.add(
           analysis.cloudCoverage,
@@ -224,11 +303,16 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
     final dark =
         totalDark / validImages;
 
+    /*
+     * Zistíme, či sa počas 10 sekúnd
+     * oblačnosť výraznejšie menila.
+     */
     double cloudChange = 0.0;
 
     if (cloudValues.length >= 2) {
       cloudChange =
-          cloudValues.last - cloudValues.first;
+          cloudValues.last -
+              cloudValues.first;
     }
 
     if (!mounted) return;
@@ -256,13 +340,23 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
     int samples = 0;
 
     /*
-     * Analyzujeme každý 8. pixel.
-     * Tým výrazne znížime zaťaženie telefónu,
-     * ale stále získame dostatok údajov.
+     * Nemusíme kontrolovať každý pixel.
+     *
+     * Každý 8. pixel je dostatočný na
+     * rýchlu orientačnú analýzu.
      */
-    for (int y = 0; y < image.height; y += 8) {
-      for (int x = 0; x < image.width; x += 8) {
-        final pixel = image.getPixel(x, y);
+    for (
+      int y = 0;
+      y < image.height;
+      y += 8
+    ) {
+      for (
+        int x = 0;
+        x < image.width;
+        x += 8
+      ) {
+        final pixel =
+            image.getPixel(x, y);
 
         final double r =
             pixel.r.toDouble();
@@ -294,10 +388,11 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
                 : (maxValue - minValue) /
                     maxValue;
 
-        brightnessSum += brightness;
+        brightnessSum +=
+            brightness;
 
         /*
-         * Detekcia modrej oblohy.
+         * MODRÁ OBLOHA
          */
         final bool isBlue =
             b > r * 1.15 &&
@@ -306,15 +401,16 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
             brightness > 60;
 
         /*
-         * Detekcia bielych alebo sivých oblastí,
-         * ktoré môžu predstavovať oblačnosť.
+         * OBLAČNOSŤ
+         *
+         * Biele a sivé oblasti.
          */
         final bool isCloud =
             saturation < 0.18 &&
             brightness > 90;
 
         /*
-         * Tmavé oblasti.
+         * TMAVÉ OBLASTI
          */
         final bool isDark =
             brightness < 75;
@@ -346,13 +442,23 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
     return _SkyAnalysis(
       cloudCoverage:
-          cloudPixels / samples * 100.0,
+          cloudPixels /
+              samples *
+              100.0,
+
       blueSky:
-          bluePixels / samples * 100.0,
+          bluePixels /
+              samples *
+              100.0,
+
       brightness:
-          brightnessSum / samples,
+          brightnessSum /
+              samples,
+
       darkClouds:
-          darkPixels / samples * 100.0,
+          darkPixels /
+              samples *
+              100.0,
     );
   }
 
@@ -380,8 +486,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
       _weatherDescription =
           'Obloha obsahuje veľké množstvo '
           'tmavých a hustých oblastí. '
-          'Môže ísť o dažďovú alebo búrkovú '
-          'oblačnosť.';
+          'Môže ísť o dažďovú alebo '
+          'búrkovú oblačnosť.';
     }
 
     /*
@@ -392,8 +498,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
           '☁️ Zamračené';
 
       _weatherDescription =
-          'Väčšina pozorovanej oblohy vykazuje '
-          'znaky oblačnosti.';
+          'Väčšina pozorovanej oblohy '
+          'vykazuje znaky oblačnosti.';
     }
 
     /*
@@ -404,8 +510,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
           '⛅ Polooblačno';
 
       _weatherDescription =
-          'Analýza ukazuje kombináciu oblačnosti '
-          'a jasnej oblohy.';
+          'Analýza ukazuje kombináciu '
+          'oblačnosti a jasnej oblohy.';
     }
 
     /*
@@ -416,8 +522,9 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
           '☀️ Jasná obloha';
 
       _weatherDescription =
-          'Výrazná časť snímok obsahuje modrú '
-          'oblohu a nízku mieru oblačnosti.';
+          'Výrazná časť snímok obsahuje '
+          'modrú oblohu a nízku mieru '
+          'oblačnosti.';
     }
 
     /*
@@ -428,9 +535,10 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
           '🌥️ Tmavá obloha';
 
       _weatherDescription =
-          'Obloha je výrazne tmavá. Môže ísť '
-          'o hustú oblačnosť, večerné svetlo '
-          'alebo nedostatok osvetlenia.';
+          'Obloha je výrazne tmavá. '
+          'Môže ísť o hustú oblačnosť, '
+          'večerné svetlo alebo slabé '
+          'osvetlenie.';
     }
 
     /*
@@ -446,8 +554,7 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
     }
 
     /*
-     * Ak sa oblačnosť počas snímania výrazne zvýšila,
-     * doplníme informáciu o vývoji.
+     * Vývoj oblačnosti počas snímania.
      */
     if (_cloudChange > 15) {
       _weatherDescription +=
@@ -563,8 +670,8 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
                 ),
 
                 _buildResultRow(
-                  '📷 Snímky',
-                  '$_capturedFrames / 5',
+                  '📷 Analyzované snímky',
+                  '$_capturedFrames / 10',
                 ),
 
                 const SizedBox(height: 20),
@@ -581,10 +688,10 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
                     ),
                   ),
                   child: const Text(
-                    'Ide o prvú obrazovú analýzu '
-                    'oblohy. Výsledok je založený '
-                    'na farbe, jase a štruktúre '
-                    'snímok, nie na AI modeli.',
+                    'Snímky boli použité iba '
+                    'na lokálnu analýzu oblohy. '
+                    'Po dokončení analýzy boli '
+                    'dočasné obrázky vymazané.',
                     textAlign:
                         TextAlign.center,
                     style: TextStyle(
@@ -659,7 +766,15 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
   @override
   void dispose() {
+    /*
+     * Ak používateľ opustí obrazovku
+     * počas analýzy, pokúsime sa vymazať
+     * aj prípadné zostávajúce obrázky.
+     */
+    _deleteCapturedImages();
+
     _controller?.dispose();
+
     super.dispose();
   }
 
@@ -864,7 +979,7 @@ class _SkyAnalyzerWidgetState extends State<SkyAnalyzerWidget> {
 
                   Text(
                     'Snímka '
-                    '$_capturedFrames / 5',
+                    '$_capturedFrames / 10',
                     style:
                         const TextStyle(
                       color:
