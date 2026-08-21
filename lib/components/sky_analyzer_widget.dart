@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:sensors_plus/sensors_plus.dart';
 
 class SkyAnalyzerWidget extends StatefulWidget {
   const SkyAnalyzerWidget({super.key});
@@ -18,8 +21,13 @@ class _SkyAnalyzerWidgetState
     extends State<SkyAnalyzerWidget> {
   CameraController? _controller;
 
+  StreamSubscription<BarometerEvent>? _pressureSubscription;
+  StreamSubscription<UserAccelerometerEvent>?
+      _accelerometerSubscription;
+
   bool _isInitializing = true;
   bool _isAnalyzing = false;
+  bool _weatherLoading = false;
 
   String? _error;
 
@@ -27,12 +35,47 @@ class _SkyAnalyzerWidgetState
 
   final List<XFile> _capturedImages = [];
 
+  // ------------------------------------------------------------
+  // KAMERA
+  // ------------------------------------------------------------
+
   double _cloudCoverage = 0.0;
   double _blueSky = 0.0;
   double _brightness = 0.0;
   double _darkClouds = 0.0;
-
   double _cloudChange = 0.0;
+
+  // ------------------------------------------------------------
+  // BAROMETER
+  // ------------------------------------------------------------
+
+  double? _pressureStart;
+  double? _pressureEnd;
+  double _pressureChange = 0.0;
+
+  bool _phoneWasMoving = false;
+
+  // ------------------------------------------------------------
+  // GPS / METEO
+  // ------------------------------------------------------------
+
+  double? _latitude;
+  double? _longitude;
+
+  double? _apiTemperature;
+  double? _apiPressure;
+  double? _apiCloudCover;
+  double? _apiPrecipitation;
+  double? _apiPrecipitationProbability;
+
+  int? _apiWeatherCode;
+
+  double? _nextRainProbability;
+  double? _nextCloudCover;
+
+  // ------------------------------------------------------------
+  // VÝSLEDOK
+  // ------------------------------------------------------------
 
   String _weatherResult =
       'Čakám na analýzu';
@@ -42,13 +85,19 @@ class _SkyAnalyzerWidgetState
   @override
   void initState() {
     super.initState();
+
     _initializeCamera();
+    _initializeSensors();
+    _initializeLocation();
   }
+
+  // ============================================================
+  // KAMERA
+  // ============================================================
 
   Future<void> _initializeCamera() async {
     try {
-      final cameras =
-          await availableCameras();
+      final cameras = await availableCameras();
 
       if (cameras.isEmpty) {
         if (!mounted) return;
@@ -74,8 +123,7 @@ class _SkyAnalyzerWidgetState
 
       selectedCamera ??= cameras.first;
 
-      final controller =
-          CameraController(
+      final controller = CameraController(
         selectedCamera,
         ResolutionPreset.medium,
         enableAudio: false,
@@ -103,6 +151,383 @@ class _SkyAnalyzerWidgetState
     }
   }
 
+  // ============================================================
+  // SENZORY
+  // ============================================================
+
+  void _initializeSensors() {
+    // ----------------------------------------------------------
+    // BAROMETER
+    // ----------------------------------------------------------
+
+    try {
+      _pressureSubscription =
+          barometerEventStream().listen(
+        (event) {
+          if (!mounted) return;
+
+          final pressure = event.pressure;
+
+          if (pressure <= 0) return;
+
+          if (_isAnalyzing) {
+            if (_pressureStart == null) {
+              _pressureStart = pressure;
+            }
+
+            _pressureEnd = pressure;
+
+            if (_pressureStart != null) {
+              _pressureChange =
+                  pressure - _pressureStart!;
+            }
+          }
+        },
+        onError: (error) {
+          debugPrint(
+            'Barometer error: $error',
+          );
+        },
+      );
+    } catch (e) {
+      debugPrint(
+        'Barometer unavailable: $e',
+      );
+    }
+
+    // ----------------------------------------------------------
+    // AKCELEROMETER
+    // ----------------------------------------------------------
+
+    try {
+      _accelerometerSubscription =
+          userAccelerometerEventStream().listen(
+        (event) {
+          final motion =
+              event.x.abs() +
+              event.y.abs() +
+              event.z.abs();
+
+          final moving = motion > 3.0;
+
+          if (mounted && moving) {
+            _phoneWasMoving = true;
+          }
+        },
+        onError: (error) {
+          debugPrint(
+            'Accelerometer error: $error',
+          );
+        },
+      );
+    } catch (e) {
+      debugPrint(
+        'Accelerometer unavailable: $e',
+      );
+    }
+  }
+
+  // ============================================================
+  // GPS
+  // ============================================================
+
+  Future<void> _initializeLocation() async {
+    try {
+      final enabled =
+          await Geolocator.isLocationServiceEnabled();
+
+      if (!enabled) {
+        return;
+      }
+
+      var permission =
+          await Geolocator.checkPermission();
+
+      if (permission ==
+          LocationPermission.denied) {
+        permission =
+            await Geolocator.requestPermission();
+      }
+
+      if (permission ==
+              LocationPermission.whileInUse ||
+          permission ==
+              LocationPermission.always) {
+        final position =
+            await Geolocator.getCurrentPosition(
+          desiredAccuracy:
+              LocationAccuracy.high,
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          _latitude =
+              position.latitude;
+          _longitude =
+              position.longitude;
+        });
+      }
+    } catch (e) {
+      debugPrint(
+        'GPS error: $e',
+      );
+    }
+  }
+
+  // ============================================================
+  // OPEN-METEO
+  // ============================================================
+
+  Future<void> _loadWeatherForecast() async {
+    if (_latitude == null ||
+        _longitude == null) {
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _weatherLoading = true;
+      });
+    }
+
+    try {
+      final url = Uri.parse(
+        'https://api.open-meteo.com/v1/forecast'
+        '?latitude=$_latitude'
+        '&longitude=$_longitude'
+        '&current=temperature_2m,'
+        'relative_humidity_2m,'
+        'precipitation,'
+        'weather_code,'
+        'cloud_cover,'
+        'surface_pressure'
+        '&hourly=precipitation_probability,'
+        'precipitation,'
+        'cloud_cover,'
+        'weather_code,'
+        'surface_pressure'
+        '&forecast_hours=6'
+        '&timezone=auto',
+      );
+
+      final response =
+          await http.get(url);
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          'HTTP ${response.statusCode}',
+        );
+      }
+
+      final Map<String, dynamic> data =
+          Map<String, dynamic>.from(
+        Uri.decodeFull(
+          response.body,
+        ).isEmpty
+            ? {}
+            : _decodeJson(response.body),
+      );
+
+      final current =
+          data['current'] as Map<String, dynamic>?;
+
+      final hourly =
+          data['hourly'] as Map<String, dynamic>?;
+
+      if (current == null) {
+        throw Exception(
+          'Chýbajú aktuálne údaje.',
+        );
+      }
+
+      final temperature =
+          _toDouble(
+        current['temperature_2m'],
+      );
+
+      final pressure =
+          _toDouble(
+        current['surface_pressure'],
+      );
+
+      final cloud =
+          _toDouble(
+        current['cloud_cover'],
+      );
+
+      final precipitation =
+          _toDouble(
+        current['precipitation'],
+      );
+
+      final probability =
+          _toDouble(
+        hourly?['precipitation_probability']
+            is List &&
+            (hourly?[
+                    'precipitation_probability']
+                as List)
+                .isNotEmpty
+            ? (hourly![
+                    'precipitation_probability']
+                as List)
+                .first
+            : null,
+      );
+
+      double? nextProbability;
+
+      double? nextCloud;
+
+      if (hourly != null) {
+        final probabilities =
+            hourly[
+                'precipitation_probability'];
+
+        final clouds =
+            hourly['cloud_cover'];
+
+        if (probabilities is List &&
+            probabilities.isNotEmpty) {
+          final values =
+              probabilities
+                  .take(
+                    math.min(
+                      3,
+                      probabilities.length,
+                    ),
+                  )
+                  .map(
+                    (e) =>
+                        _toDouble(e) ?? 0.0,
+                  )
+                  .toList();
+
+          if (values.isNotEmpty) {
+            nextProbability =
+                values.reduce(
+                      (a, b) =>
+                          a > b ? a : b,
+                    );
+          }
+        }
+
+        if (clouds is List &&
+            clouds.isNotEmpty) {
+          final values =
+              clouds
+                  .take(
+                    math.min(
+                      3,
+                      clouds.length,
+                    ),
+                  )
+                  .map(
+                    (e) =>
+                        _toDouble(e) ?? 0.0,
+                  )
+                  .toList();
+
+          if (values.isNotEmpty) {
+            nextCloud =
+                values.reduce(
+                      (a, b) =>
+                          a + b,
+                    ) /
+                    values.length;
+          }
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _apiTemperature =
+            temperature;
+
+        _apiPressure =
+            pressure;
+
+        _apiCloudCover =
+            cloud;
+
+        _apiPrecipitation =
+            precipitation;
+
+        _apiPrecipitationProbability =
+            probability;
+
+        _nextRainProbability =
+            nextProbability;
+
+        _nextCloudCover =
+            nextCloud;
+
+        _apiWeatherCode =
+            _toInt(
+          current['weather_code'],
+        );
+
+        _weatherLoading = false;
+      });
+    } catch (e) {
+      debugPrint(
+        'Open-Meteo error: $e',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _weatherLoading = false;
+      });
+    }
+  }
+
+  Map<String, dynamic> _decodeJson(
+    String source,
+  ) {
+    // Jednoduchý parser bez ďalšej dependency.
+    // Používa sa dart:convert cez lokálnu implementáciu
+    // nižšie.
+    return jsonDecode(source)
+        as Map<String, dynamic>;
+  }
+
+  double? _toDouble(
+    dynamic value,
+  ) {
+    if (value == null) return null;
+
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+      value.toString(),
+    );
+  }
+
+  int? _toInt(
+    dynamic value,
+  ) {
+    if (value == null) return null;
+
+    if (value is int) return value;
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(
+      value.toString(),
+    );
+  }
+
+  // ============================================================
+  // HLAVNÁ ANALÝZA
+  // ============================================================
+
   Future<void> _analyzeSky() async {
     final controller = _controller;
 
@@ -125,6 +550,12 @@ class _SkyAnalyzerWidgetState
       _darkClouds = 0.0;
       _cloudChange = 0.0;
 
+      _pressureStart = null;
+      _pressureEnd = null;
+      _pressureChange = 0.0;
+
+      _phoneWasMoving = false;
+
       _weatherResult =
           'Analyzujem...';
 
@@ -134,14 +565,13 @@ class _SkyAnalyzerWidgetState
     });
 
     try {
-      /*
-       * Nasnímame 10 záberov.
-       *
-       * Jeden záber približne každú sekundu.
-       *
-       * Telefón teda nemusí používateľ držať
-       * na oblohe minúty.
-       */
+      // Načítame meteodata súčasne s kamerovou analýzou.
+      await _loadWeatherForecast();
+
+      // --------------------------------------------------------
+      // 10 SEKÚND
+      // --------------------------------------------------------
+
       for (int i = 0; i < 10; i++) {
         if (!mounted) return;
 
@@ -158,24 +588,29 @@ class _SkyAnalyzerWidgetState
 
         if (i < 9) {
           await Future.delayed(
-            const Duration(
-              seconds: 1,
-            ),
+            const Duration(seconds: 1),
           );
         }
       }
 
-      /*
-       * Spracovanie všetkých 10 záberov.
-       */
+      // --------------------------------------------------------
+      // SPRACOVANIE OBRÁZKOV
+      // --------------------------------------------------------
+
       await _processImages();
 
-      /*
-       * DÔLEŽITÉ:
-       *
-       * Po dokončení analýzy odstránime
-       * vytvorené dočasné súbory.
-       */
+      if (!mounted) return;
+
+      // --------------------------------------------------------
+      // VÝPOČET KOMBINOVANÉHO VÝSLEDKU
+      // --------------------------------------------------------
+
+      _calculateCombinedWeatherResult();
+
+      // --------------------------------------------------------
+      // OKAMŽITÉ ZMAZANIE FOTIEK
+      // --------------------------------------------------------
+
       await _deleteCapturedImages();
 
       if (!mounted) return;
@@ -186,10 +621,6 @@ class _SkyAnalyzerWidgetState
 
       _showAnalysisResult();
     } catch (e) {
-      /*
-       * Aj pri chybe sa pokúsime vymazať
-       * už vytvorené obrázky.
-       */
       await _deleteCapturedImages();
 
       if (!mounted) return;
@@ -203,28 +634,9 @@ class _SkyAnalyzerWidgetState
     }
   }
 
-  Future<void> _deleteCapturedImages() async {
-    /*
-     * Prejdeme všetky vytvorené XFile
-     * a odstránime ich z dočasného úložiska.
-     */
-    for (final image
-        in List<XFile>.from(_capturedImages)) {
-      try {
-        final file = File(image.path);
-
-        if (await file.exists()) {
-          await file.delete();
-        }
-      } catch (e) {
-        debugPrint(
-          'Nepodarilo sa vymazať obrázok: $e',
-        );
-      }
-    }
-
-    _capturedImages.clear();
-  }
+  // ============================================================
+  // SPRACOVANIE OBRÁZKOV
+  // ============================================================
 
   Future<void> _processImages() async {
     if (_capturedImages.isEmpty) {
@@ -242,9 +654,6 @@ class _SkyAnalyzerWidgetState
 
     int validImages = 0;
 
-    /*
-     * Spracujeme všetkých 10 záberov.
-     */
     for (final cameraImage
         in _capturedImages) {
       try {
@@ -303,16 +712,12 @@ class _SkyAnalyzerWidgetState
     final dark =
         totalDark / validImages;
 
-    /*
-     * Zistíme, či sa počas 10 sekúnd
-     * oblačnosť výraznejšie menila.
-     */
     double cloudChange = 0.0;
 
     if (cloudValues.length >= 2) {
       cloudChange =
           cloudValues.last -
-              cloudValues.first;
+          cloudValues.first;
     }
 
     if (!mounted) return;
@@ -323,10 +728,12 @@ class _SkyAnalyzerWidgetState
       _brightness = brightness;
       _darkClouds = dark;
       _cloudChange = cloudChange;
-
-      _calculateWeatherResult();
     });
   }
+
+  // ============================================================
+  // ANALÝZA JEDNÉHO OBRÁZKA
+  // ============================================================
 
   Future<_SkyAnalysis> _analyzeImage(
     img.Image image,
@@ -339,12 +746,6 @@ class _SkyAnalyzerWidgetState
 
     int samples = 0;
 
-    /*
-     * Nemusíme kontrolovať každý pixel.
-     *
-     * Každý 8. pixel je dostatočný na
-     * rýchlu orientačnú analýzu.
-     */
     for (
       int y = 0;
       y < image.height;
@@ -385,33 +786,35 @@ class _SkyAnalyzerWidgetState
         final double saturation =
             maxValue == 0
                 ? 0.0
-                : (maxValue - minValue) /
+                : (maxValue -
+                        minValue) /
                     maxValue;
 
         brightnessSum +=
             brightness;
 
-        /*
-         * MODRÁ OBLOHA
-         */
+        // ------------------------------------------------------
+        // MODRÁ OBLOHA
+        // ------------------------------------------------------
+
         final bool isBlue =
             b > r * 1.15 &&
             b > g * 1.05 &&
             saturation > 0.12 &&
             brightness > 60;
 
-        /*
-         * OBLAČNOSŤ
-         *
-         * Biele a sivé oblasti.
-         */
+        // ------------------------------------------------------
+        // OBLAČNOSŤ
+        // ------------------------------------------------------
+
         final bool isCloud =
             saturation < 0.18 &&
             brightness > 90;
 
-        /*
-         * TMAVÉ OBLASTI
-         */
+        // ------------------------------------------------------
+        // TMAVÉ OBLASTI
+        // ------------------------------------------------------
+
         final bool isDark =
             brightness < 75;
 
@@ -445,16 +848,13 @@ class _SkyAnalyzerWidgetState
           cloudPixels /
               samples *
               100.0,
-
       blueSky:
           bluePixels /
               samples *
               100.0,
-
       brightness:
           brightnessSum /
               samples,
-
       darkClouds:
           darkPixels /
               samples *
@@ -462,114 +862,198 @@ class _SkyAnalyzerWidgetState
     );
   }
 
-  void _calculateWeatherResult() {
-    final double cloud =
+  // ============================================================
+  // KOMBINOVANÁ METEO ANALÝZA
+  // ============================================================
+
+  void _calculateCombinedWeatherResult() {
+    final cameraCloud =
         _cloudCoverage;
 
-    final double blue =
+    final cameraBlue =
         _blueSky;
 
-    final double dark =
+    final dark =
         _darkClouds;
 
-    final double brightness =
+    final brightness =
         _brightness;
 
-    /*
-     * Silná tmavá oblačnosť.
-     */
-    if (dark > 35 &&
-        cloud > 35) {
-      _weatherResult =
-          '🌧️ Veľmi zamračené';
+    final apiCloud =
+        _apiCloudCover;
 
-      _weatherDescription =
-          'Obloha obsahuje veľké množstvo '
-          'tmavých a hustých oblastí. '
-          'Môže ísť o dažďovú alebo '
-          'búrkovú oblačnosť.';
+    final rainProbability =
+        _nextRainProbability ??
+        _apiPrecipitationProbability;
+
+    // ----------------------------------------------------------
+    // KOMBINOVANÁ OBLAČNOSŤ
+    // ----------------------------------------------------------
+
+    double combinedCloud =
+        cameraCloud;
+
+    if (apiCloud != null) {
+      // Kamera má väčšiu váhu, pretože ukazuje
+      // skutočnú oblohu priamo nad telefónom.
+      combinedCloud =
+          cameraCloud * 0.65 +
+          apiCloud * 0.35;
     }
 
-    /*
-     * Veľmi vysoká oblačnosť.
-     */
-    else if (cloud > 70) {
+    // ----------------------------------------------------------
+    // TLAK
+    // ----------------------------------------------------------
+
+    final pressureFalling =
+        _pressureChange < -0.5;
+
+    final pressureStronglyFalling =
+        _pressureChange < -1.5;
+
+    // ----------------------------------------------------------
+    // PRAVDEPODOBNOSŤ DAŽĎA
+    // ----------------------------------------------------------
+
+    final rainLikely =
+        rainProbability != null &&
+        rainProbability >= 50;
+
+    final rainVeryLikely =
+        rainProbability != null &&
+        rainProbability >= 70;
+
+    // ----------------------------------------------------------
+    // HLAVNÝ VÝSLEDOK
+    // ----------------------------------------------------------
+
+    if (rainVeryLikely &&
+        (combinedCloud > 60 ||
+            dark > 25)) {
+      _weatherResult =
+          '🌧️ Pravdepodobný dážď';
+
+      _weatherDescription =
+          'Kamera zachytila výraznú oblačnosť '
+          'a meteopredpoveď zároveň uvádza '
+          'vyššiu pravdepodobnosť zrážok.';
+    } else if (rainLikely &&
+        combinedCloud > 55) {
+      _weatherResult =
+          '🌦️ Možné zrážky';
+
+      _weatherDescription =
+          'Obloha vykazuje výraznú oblačnosť '
+          'a predpoveď naznačuje možnosť '
+          'zrážok v najbližších hodinách.';
+    } else if (dark > 35 &&
+        combinedCloud > 50 &&
+        pressureStronglyFalling) {
+      _weatherResult =
+          '⛈️ Zhoršovanie počasia';
+
+      _weatherDescription =
+          'Kamera zachytila tmavú oblačnosť, '
+          'tlak klesá a stav oblohy môže '
+          'naznačovať príchod zhoršenia.';
+    } else if (combinedCloud > 75) {
       _weatherResult =
           '☁️ Zamračené';
 
       _weatherDescription =
-          'Väčšina pozorovanej oblohy '
-          'vykazuje znaky oblačnosti.';
-    }
-
-    /*
-     * Stredná oblačnosť.
-     */
-    else if (cloud > 40) {
+          'Kamera aj meteodata ukazujú '
+          'vysokú mieru oblačnosti.';
+    } else if (combinedCloud > 50) {
       _weatherResult =
           '⛅ Polooblačno';
 
       _weatherDescription =
-          'Analýza ukazuje kombináciu '
-          'oblačnosti a jasnej oblohy.';
-    }
-
-    /*
-     * Veľa modrej oblohy.
-     */
-    else if (blue > 45) {
+          'Pozorovanie ukazuje značnú '
+          'oblačnosť, ale časť oblohy '
+          'zostáva jasná.';
+    } else if (cameraBlue > 45 &&
+        combinedCloud < 40) {
       _weatherResult =
           '☀️ Jasná obloha';
 
       _weatherDescription =
-          'Výrazná časť snímok obsahuje '
-          'modrú oblohu a nízku mieru '
-          'oblačnosti.';
-    }
-
-    /*
-     * Tmavá scéna.
-     */
-    else if (brightness < 80) {
+          'Kamera zachytila veľké množstvo '
+          'modrej oblohy a nízku oblačnosť.';
+    } else if (brightness < 80) {
       _weatherResult =
           '🌥️ Tmavá obloha';
 
       _weatherDescription =
           'Obloha je výrazne tmavá. '
-          'Môže ísť o hustú oblačnosť, '
-          'večerné svetlo alebo slabé '
-          'osvetlenie.';
-    }
-
-    /*
-     * Nejednoznačný výsledok.
-     */
-    else {
+          'Môže ísť o hustú oblačnosť '
+          'alebo slabé svetelné podmienky.';
+    } else {
       _weatherResult =
           '🌤️ Premenlivá obloha';
 
       _weatherDescription =
-          'Obrazová analýza nedokázala '
-          'jednoznačne zaradiť stav oblohy.';
+          'Pozorovanie neposkytlo jednoznačný '
+          'výsledok.';
     }
 
-    /*
-     * Vývoj oblačnosti počas snímania.
-     */
+    // ----------------------------------------------------------
+    // DYNAMIKA OBLAČNOSTI
+    // ----------------------------------------------------------
+
     if (_cloudChange > 15) {
       _weatherDescription +=
-          ' Počas snímania sa oblačnosť '
+          ' Počas 10 sekúnd sa oblačnosť '
           'výrazne zvýšila.';
     } else if (_cloudChange < -15) {
       _weatherDescription +=
           ' Počas snímania sa oblačnosť '
-          'mierne znižovala.';
+          'znižovala.';
     } else {
       _weatherDescription +=
-          ' Počas snímania bola oblačnosť '
+          ' Oblačnosť bola počas merania '
           'relatívne stabilná.';
     }
+
+    // ----------------------------------------------------------
+    // TLAK
+    // ----------------------------------------------------------
+
+    if (!_phoneWasMoving &&
+        pressureFalling) {
+      _weatherDescription +=
+          ' Barometer zároveň zaznamenal '
+          'pokles tlaku.';
+    } else if (_phoneWasMoving) {
+      _weatherDescription +=
+          ' Meranie tlaku môže byť ovplyvnené '
+          'pohybom telefónu.';
+    }
   }
+
+  // ============================================================
+  // ZMAZANIE FOTOGRAFIÍ
+  // ============================================================
+
+  Future<void> _deleteCapturedImages() async {
+    for (final image
+        in List<XFile>.from(
+      _capturedImages,
+    )) {
+      try {
+        await image.delete();
+      } catch (e) {
+        debugPrint(
+          'Nepodarilo sa vymazať snímku: $e',
+        );
+      }
+    }
+
+    _capturedImages.clear();
+  }
+
+  // ============================================================
+  // VÝSLEDOK
+  // ============================================================
 
   void _showAnalysisResult() {
     showModalBottomSheet(
@@ -605,7 +1089,8 @@ class _SkyAnalyzerWidgetState
 
                 const Text(
                   'VÝSLEDOK ANALÝZY',
-                  style: TextStyle(
+                  style:
+                      TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight:
@@ -636,7 +1121,8 @@ class _SkyAnalyzerWidgetState
                       TextAlign.center,
                   style:
                       const TextStyle(
-                    color: Colors.white70,
+                    color:
+                        Colors.white70,
                     fontSize: 14,
                   ),
                 ),
@@ -644,7 +1130,7 @@ class _SkyAnalyzerWidgetState
                 const SizedBox(height: 24),
 
                 _buildResultRow(
-                  '☁️ Odhad oblačnosti',
+                  '☁️ Kamera – oblačnosť',
                   '${_cloudCoverage.toStringAsFixed(0)} %',
                 ),
 
@@ -669,9 +1155,65 @@ class _SkyAnalyzerWidgetState
                   '${_cloudChange.toStringAsFixed(0)} %',
                 ),
 
+                const Divider(
+                  height: 28,
+                  color: Colors.white12,
+                ),
+
                 _buildResultRow(
-                  '📷 Analyzované snímky',
+                  '🌦️ Predpoveď – oblačnosť',
+                  _apiCloudCover != null
+                      ? '${_apiCloudCover!.toStringAsFixed(0)} %'
+                      : 'N/A',
+                ),
+
+                _buildResultRow(
+                  '🌧️ Zrážky',
+                  _nextRainProbability != null
+                      ? '${_nextRainProbability!.toStringAsFixed(0)} %'
+                      : 'N/A',
+                ),
+
+                _buildResultRow(
+                  '🌧️ Aktuálne zrážky',
+                  _apiPrecipitation != null
+                      ? '${_apiPrecipitation!.toStringAsFixed(1)} mm'
+                      : 'N/A',
+                ),
+
+                _buildResultRow(
+                  '🌡️ Teplota',
+                  _apiTemperature != null
+                      ? '${_apiTemperature!.toStringAsFixed(1)} °C'
+                      : 'N/A',
+                ),
+
+                _buildResultRow(
+                  '🧭 Tlak',
+                  _apiPressure != null
+                      ? '${_apiPressure!.toStringAsFixed(1)} hPa'
+                      : 'N/A',
+                ),
+
+                _buildResultRow(
+                  '📉 Zmena tlaku telefónu',
+                  '${_pressureChange >= 0 ? '+' : ''}'
+                  '${_pressureChange.toStringAsFixed(2)} hPa',
+                ),
+
+                const Divider(
+                  height: 28,
+                  color: Colors.white12,
+                ),
+
+                _buildResultRow(
+                  '📷 Snímky',
                   '$_capturedFrames / 10',
+                ),
+
+                _buildResultRow(
+                  '🗑️ Fotografie',
+                  'Vymazané',
                 ),
 
                 const SizedBox(height: 20),
@@ -681,21 +1223,25 @@ class _SkyAnalyzerWidgetState
                       const EdgeInsets.all(12),
                   decoration:
                       BoxDecoration(
-                    color: Colors.black26,
+                    color:
+                        Colors.black26,
                     borderRadius:
                         BorderRadius.circular(
                       12,
                     ),
                   ),
-                  child: const Text(
-                    'Snímky boli použité iba '
-                    'na lokálnu analýzu oblohy. '
-                    'Po dokončení analýzy boli '
-                    'dočasné obrázky vymazané.',
+                  child:
+                      const Text(
+                    'Výsledok kombinuje obrazovú '
+                    'analýzu oblohy, barometer, '
+                    'pohyb telefónu a dostupné '
+                    'meteodata. Nejde o AI model.',
                     textAlign:
                         TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white60,
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white60,
                       fontSize: 12,
                     ),
                   ),
@@ -713,7 +1259,9 @@ class _SkyAnalyzerWidgetState
                       context,
                     ),
                     child:
-                        const Text('HOTOVO'),
+                        const Text(
+                      'HOTOVO',
+                    ),
                   ),
                 ),
               ],
@@ -749,6 +1297,7 @@ class _SkyAnalyzerWidgetState
               ),
             ),
           ),
+          const SizedBox(width: 12),
           Text(
             value,
             style:
@@ -764,19 +1313,23 @@ class _SkyAnalyzerWidgetState
     );
   }
 
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
   @override
   void dispose() {
-    /*
-     * Ak používateľ opustí obrazovku
-     * počas analýzy, pokúsime sa vymazať
-     * aj prípadné zostávajúce obrázky.
-     */
-    _deleteCapturedImages();
+    _pressureSubscription?.cancel();
+    _accelerometerSubscription?.cancel();
 
     _controller?.dispose();
 
     super.dispose();
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(
@@ -794,8 +1347,10 @@ class _SkyAnalyzerWidgetState
 
             Text(
               'Spúšťam kameru...',
-              style: TextStyle(
-                color: Colors.white70,
+              style:
+                  TextStyle(
+                color:
+                    Colors.white70,
               ),
             ),
           ],
@@ -816,7 +1371,8 @@ class _SkyAnalyzerWidgetState
                 Icons
                     .camera_alt_outlined,
                 size: 60,
-                color: Colors.white54,
+                color:
+                    Colors.white54,
               ),
 
               const SizedBox(height: 16),
@@ -844,10 +1400,12 @@ class _SkyAnalyzerWidgetState
 
                   _initializeCamera();
                 },
-                icon: const Icon(
+                icon:
+                    const Icon(
                   Icons.refresh,
                 ),
-                label: const Text(
+                label:
+                    const Text(
                   'Skúsiť znova',
                 ),
               ),
@@ -866,8 +1424,10 @@ class _SkyAnalyzerWidgetState
       return const Center(
         child: Text(
           'Kamera nie je pripravená.',
-          style: TextStyle(
-            color: Colors.white70,
+          style:
+              TextStyle(
+            color:
+                Colors.white70,
           ),
         ),
       );
@@ -917,8 +1477,7 @@ class _SkyAnalyzerWidgetState
                 SizedBox(height: 4),
 
                 Text(
-                  'Namierte telefón '
-                  'na oblohu',
+                  'Namierte telefón na oblohu',
                   textAlign:
                       TextAlign.center,
                   style:
@@ -926,6 +1485,20 @@ class _SkyAnalyzerWidgetState
                     color:
                         Colors.white70,
                     fontSize: 14,
+                  ),
+                ),
+
+                SizedBox(height: 4),
+
+                Text(
+                  '10 sekúnd • kamera + senzory + meteodata',
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      TextStyle(
+                    color:
+                        Colors.white54,
+                    fontSize: 11,
                   ),
                 ),
               ],
@@ -986,6 +1559,22 @@ class _SkyAnalyzerWidgetState
                           Colors.white70,
                     ),
                   ),
+
+                  const SizedBox(
+                    height: 4,
+                  ),
+
+                  Text(
+                    _weatherLoading
+                        ? 'Načítavam meteopredpoveď...'
+                        : 'Senzory a kamera aktívne',
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.white54,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1003,7 +1592,8 @@ class _SkyAnalyzerWidgetState
                     : _analyzeSky,
             icon: Icon(
               _isAnalyzing
-                  ? Icons.hourglass_top
+                  ? Icons
+                      .hourglass_top
                   : Icons.cloud,
             ),
             label: Text(
@@ -1031,6 +1621,10 @@ class _SkyAnalyzerWidgetState
     );
   }
 }
+
+// ===============================================================
+// VÝSLEDOK ANALÝZY JEDNÉHO OBRÁZKA
+// ===============================================================
 
 class _SkyAnalysis {
   final double cloudCoverage;
