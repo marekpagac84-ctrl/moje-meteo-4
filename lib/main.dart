@@ -227,7 +227,7 @@ try {
 
   setState(() => _isLoadingMeteo = false);
 }
-```
+
 
 }
 
@@ -236,7 +236,7 @@ setState(() {
 final double newPressure =
 _barometerState.currentPressure - 3.5;
 
-```
+
   List<PressurePoint> history =
       List.from(_barometerState.pressureHistory);
 
@@ -253,7 +253,7 @@ _barometerState.currentPressure - 3.5;
     pressureHistory: history,
   );
 });
-```
+
 
 }
 
@@ -501,7 +501,7 @@ _locationName = preset.name;
     ),
   ),
 );
-```
+
 
 }
 }
