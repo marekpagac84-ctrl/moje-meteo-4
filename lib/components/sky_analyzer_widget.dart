@@ -1,6 +1,7 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -48,18 +49,30 @@ class _SkyAnalyzerWidgetState
   int? _rainProbability;
   double? _rainAmount;
 
-  double _rainScore = 0.0;
+  String _weatherResult =
+      'Čakám na analýzu';
 
-  String _weatherResult = 'Čakám na analýzu';
   String _weatherDescription = '';
 
   // ==========================================================
-  // NOVÉ – ČO ČAKAŤ
+  // NOVÁ PREDPOVEĎ
   // ==========================================================
 
-  String _whatToExpect = '';
-  String _expectedTime = '';
-  String _expectedDetail = '';
+  String _whatToExpect =
+      'Čakám na analýzu';
+
+  String _forecast30Min =
+      'Nebolo ešte vyhodnotené.';
+
+  String _forecast1Hour =
+      'Nebolo ešte vyhodnotené.';
+
+  String _forecast3Hours =
+      'Nebolo ešte vyhodnotené.';
+
+  List<String> _forecastReasons = [];
+
+  int _rainScore = 0;
 
   @override
   void initState() {
@@ -79,7 +92,8 @@ class _SkyAnalyzerWidgetState
         if (!mounted) return;
 
         setState(() {
-          _error = 'Zariadenie nemá dostupnú kameru.';
+          _error =
+              'Zariadenie nemá dostupnú kameru.';
           _isInitializing = false;
         });
 
@@ -127,7 +141,7 @@ class _SkyAnalyzerWidgetState
   }
 
   // ==========================================================
-  // ANALÝZA OBLOHY
+  // SPUSTENIE ANALÝZY
   // ==========================================================
 
   Future<void> _analyzeSky() async {
@@ -141,7 +155,6 @@ class _SkyAnalyzerWidgetState
 
     setState(() {
       _isAnalyzing = true;
-
       _capturedFrames = 0;
 
       _capturedImages.clear();
@@ -161,23 +174,33 @@ class _SkyAnalyzerWidgetState
       _rainProbability = null;
       _rainAmount = null;
 
-      _rainScore = 0.0;
+      _rainScore = 0;
 
       _weatherResult =
           'Analyzujem...';
 
       _weatherDescription = '';
 
-      _whatToExpect = '';
-      _expectedTime = '';
-      _expectedDetail = '';
+      _whatToExpect =
+          'Vyhodnocujem vývoj...';
+
+      _forecast30Min =
+          'Vyhodnocujem...';
+
+      _forecast1Hour =
+          'Vyhodnocujem...';
+
+      _forecast3Hours =
+          'Vyhodnocujem...';
+
+      _forecastReasons = [];
 
       _error = null;
     });
 
     try {
       /*
-       * 10 fotografií počas približne 10 sekúnd.
+       * 10 snímok počas približne 10 sekúnd.
        */
       for (int i = 0; i < 10; i++) {
         if (!mounted) return;
@@ -204,8 +227,6 @@ class _SkyAnalyzerWidgetState
 
       _calculateCombinedWeatherResult();
 
-      _calculateExpectedWeather();
-
       await _deleteCapturedImages();
 
       if (!mounted) return;
@@ -222,7 +243,6 @@ class _SkyAnalyzerWidgetState
 
       setState(() {
         _isAnalyzing = false;
-
         _error =
             'Analýza oblohy zlyhala: $e';
       });
@@ -230,7 +250,7 @@ class _SkyAnalyzerWidgetState
   }
 
   // ==========================================================
-  // SPRACOVANIE FOTOGRAFIÍ
+  // SPRACOVANIE OBRÁZKOV
   // ==========================================================
 
   Future<void> _processImages() async {
@@ -312,7 +332,7 @@ class _SkyAnalyzerWidgetState
     if (cloudValues.length >= 2) {
       cloudChange =
           cloudValues.last -
-          cloudValues.first;
+              cloudValues.first;
     }
 
     if (!mounted) return;
@@ -341,9 +361,6 @@ class _SkyAnalyzerWidgetState
 
     int samples = 0;
 
-    /*
-     * Každý 8. pixel.
-     */
     for (int y = 0;
         y < image.height;
         y += 8) {
@@ -387,25 +404,16 @@ class _SkyAnalyzerWidgetState
         brightnessSum +=
             brightness;
 
-        /*
-         * Modrá obloha.
-         */
         final bool isBlue =
             b > r * 1.15 &&
             b > g * 1.05 &&
             saturation > 0.12 &&
             brightness > 60;
 
-        /*
-         * Biela / sivá oblačnosť.
-         */
         final bool isCloud =
             saturation < 0.18 &&
             brightness > 90;
 
-        /*
-         * Tmavé oblasti.
-         */
         final bool isDark =
             brightness < 75;
 
@@ -495,28 +503,68 @@ class _SkyAnalyzerWidgetState
 
     double rainScore = 0.0;
 
+    final List<String> reasons = [];
+
     // ========================================================
     // KAMERA
     // ========================================================
 
     if (cloud > 70) {
       rainScore += 25;
+
+      reasons.add(
+        'Kamera vidí výraznú oblačnosť.',
+      );
     } else if (cloud > 50) {
       rainScore += 15;
+
+      reasons.add(
+        'Kamera zaznamenala zvýšenú oblačnosť.',
+      );
     } else if (cloud > 35) {
       rainScore += 8;
+
+      reasons.add(
+        'Na oblohe je čiastočná oblačnosť.',
+      );
     }
 
     if (dark > 35) {
       rainScore += 20;
+
+      reasons.add(
+        'Nachádza sa veľa tmavých oblastí oblohy.',
+      );
     } else if (dark > 20) {
       rainScore += 10;
+
+      reasons.add(
+        'Kamera zaznamenala tmavšiu oblačnosť.',
+      );
     }
 
     if (cloudChange > 15) {
       rainScore += 15;
+
+      reasons.add(
+        'Oblačnosť počas merania výrazne pribúdala.',
+      );
     } else if (cloudChange > 8) {
       rainScore += 8;
+
+      reasons.add(
+        'Oblačnosť počas merania pribúdala.',
+      );
+    } else if (cloudChange < -15) {
+      reasons.add(
+        'Oblačnosť počas merania výrazne ubúdala.',
+      );
+    }
+
+    if (blue > 45) {
+      reasons.add(
+        'Kamera zaznamenáva výrazný podiel modrej oblohy.',
+      );
     }
 
     // ========================================================
@@ -526,48 +574,98 @@ class _SkyAnalyzerWidgetState
     if (!phoneMoving) {
       if (_pressureChange < -2.0) {
         rainScore += 20;
+
+        reasons.add(
+          'Tlak výrazne klesá.',
+        );
       } else if (_pressureChange < -1.0) {
         rainScore += 12;
+
+        reasons.add(
+          'Tlak klesá.',
+        );
       } else if (_pressureChange < -0.3) {
         rainScore += 5;
-      }
 
-      if (_pressureChange > 0.5) {
+        reasons.add(
+          'Tlak mierne klesá.',
+        );
+      } else if (_pressureChange > 0.5) {
         rainScore -= 8;
+
+        reasons.add(
+          'Tlak rastie, čo je skôr priaznivý signál.',
+        );
+      } else {
+        reasons.add(
+          'Tlak je relatívne stabilný.',
+        );
       }
+    } else {
+      reasons.add(
+        'Tlakový trend sa nehodnotí naplno, pretože telefón bol v pohybe.',
+      );
     }
 
     // ========================================================
-    // OPEN METEO
+    // OPEN-METEO
     // ========================================================
 
     if (_rainProbability != null) {
       if (_rainProbability! >= 80) {
         rainScore += 20;
+
+        reasons.add(
+          'Meteorologická predpoveď dáva vysokú pravdepodobnosť zrážok.',
+        );
       } else if (_rainProbability! >= 60) {
         rainScore += 15;
+
+        reasons.add(
+          'Meteorologická predpoveď počíta so zvýšenou možnosťou zrážok.',
+        );
       } else if (_rainProbability! >= 40) {
         rainScore += 8;
+
+        reasons.add(
+          'Predpoveď počíta s určitou možnosťou zrážok.',
+        );
       } else if (_rainProbability! < 15) {
         rainScore -= 5;
+
+        reasons.add(
+          'Meteorologická predpoveď momentálne dážď veľmi neočakáva.',
+        );
       }
     }
 
     if (_rainAmount != null) {
       if (_rainAmount! >= 2.0) {
         rainScore += 10;
+
+        reasons.add(
+          'Predpovedané množstvo zrážok je vyššie.',
+        );
       } else if (_rainAmount! >= 0.5) {
         rainScore += 5;
+
+        reasons.add(
+          'Predpoveď obsahuje merateľné zrážky.',
+        );
       }
     }
 
     rainScore =
         rainScore.clamp(0.0, 100.0);
 
-    _rainScore = rainScore;
+    _rainScore =
+        rainScore.round();
+
+    _forecastReasons =
+        reasons.take(8).toList();
 
     // ========================================================
-    // VÝSLEDOK
+    // HLAVNÝ VÝSLEDOK
     // ========================================================
 
     if (rainScore >= 70) {
@@ -575,49 +673,54 @@ class _SkyAnalyzerWidgetState
           '🌧️ Vysoké riziko dažďa';
 
       _weatherDescription =
-          'Kamera, tlak a meteorologická '
-          'predpoveď vykazujú viacero '
-          'signálov podporujúcich možnosť '
-          'zrážok.';
+          'Viaceré nezávislé signály naznačujú možnosť zrážok.';
     } else if (rainScore >= 50) {
       _weatherResult =
           '🌦️ Zvýšené riziko dažďa';
 
       _weatherDescription =
-          'Podmienky naznačujú zvýšenú '
-          'možnosť zrážok.';
+          'Podmienky naznačujú zhoršovanie počasia.';
     } else if (cloud > 70) {
       _weatherResult =
           '☁️ Zamračené';
 
       _weatherDescription =
-          'Obloha je výrazne pokrytá '
-          'oblačnosťou.';
+          'Obloha je výrazne pokrytá oblačnosťou.';
     } else if (cloud > 40) {
       _weatherResult =
           '⛅ Polooblačno';
 
       _weatherDescription =
-          'Kamera zaznamenala kombináciu '
-          'oblačnosti a jasnej oblohy.';
+          'Kamera zaznamenala kombináciu oblačnosti a jasnej oblohy.';
     } else if (blue > 45) {
       _weatherResult =
           '☀️ Jasná obloha';
 
       _weatherDescription =
-          'Kamera zaznamenala výrazný podiel '
-          'modrej oblohy a nízku oblačnosť.';
+          'Kamera zaznamenala výrazný podiel modrej oblohy.';
     } else {
       _weatherResult =
           '🌤️ Premenlivá obloha';
 
       _weatherDescription =
-          'Údaje z kamery nedávajú úplne '
-          'jednoznačný obraz počasia.';
+          'Obrazová analýza nedáva úplne jednoznačný výsledok.';
     }
 
     // ========================================================
-    // TLAK
+    // ČO ČAKAŤ
+    // ========================================================
+
+    _buildFutureForecast(
+      rainScore,
+      cloud,
+      blue,
+      cloudChange,
+      phoneMoving,
+      meteo,
+    );
+
+    // ========================================================
+    // POPIS TLAKU
     // ========================================================
 
     if (!phoneMoving) {
@@ -631,222 +734,220 @@ class _SkyAnalyzerWidgetState
         _weatherDescription +=
             ' Tlak je relatívne stabilný.';
       }
-    } else {
-      _weatherDescription +=
-          ' Telefón bol počas merania '
-          'v pohybe, preto tlakový trend '
-          'nepovažujem za spoľahlivý.';
     }
 
     // ========================================================
-    // OBLAČNOSŤ
+    // VÝVOJ OBLAČNOSTI
     // ========================================================
 
     if (cloudChange > 15) {
       _weatherDescription +=
-          ' Počas snímania oblačnosť '
-          'výrazne pribúdala.';
+          ' Počas snímania oblačnosť výrazne pribúdala.';
     } else if (cloudChange < -15) {
       _weatherDescription +=
-          ' Počas snímania oblačnosť '
-          'ubúdala.';
+          ' Počas snímania oblačnosť ubúdala.';
+    }
+  }
+
+  // ==========================================================
+  // ODHAD ĎALŠIEHO VÝVOJA
+  // ==========================================================
+
+  void _buildFutureForecast(
+    double rainScore,
+    double cloud,
+    double blue,
+    double cloudChange,
+    bool phoneMoving,
+    MeteoApiData? meteo,
+  ) {
+    final String immediate =
+        _shortTermDescription(
+      rainScore,
+      cloud,
+      cloudChange,
+      meteo,
+      0,
+    );
+
+    final String oneHour =
+        _shortTermDescription(
+      rainScore,
+      cloud,
+      cloudChange,
+      meteo,
+      1,
+    );
+
+    final String threeHours =
+        _shortTermDescription(
+      rainScore,
+      cloud,
+      cloudChange,
+      meteo,
+      3,
+    );
+
+    _forecast30Min = immediate;
+    _forecast1Hour = oneHour;
+    _forecast3Hours = threeHours;
+
+    if (rainScore >= 70) {
+      _whatToExpect =
+          '🌧️ Očakáva sa zhoršenie počasia a zvýšené riziko dažďa.';
+    } else if (rainScore >= 50) {
+      _whatToExpect =
+          '🌦️ Počasie sa môže zhoršovať, sleduj vývoj oblačnosti a zrážok.';
+    } else if (cloudChange > 15) {
+      _whatToExpect =
+          '☁️ Oblačnosť rýchlo pribúda – možné postupné zhoršovanie.';
+    } else if (cloudChange < -15 &&
+        rainScore < 40) {
+      _whatToExpect =
+          '☀️ Oblačnosť ustupuje – skôr postupné zlepšovanie.';
+    } else if (blue > 45 &&
+        rainScore < 40) {
+      _whatToExpect =
+          '☀️ Najbližšie obdobie vyzerá skôr stabilne a bez výrazného dažďa.';
     } else {
-      _weatherDescription +=
-          ' Počas snímania bola oblačnosť '
-          'pomerne stabilná.';
+      _whatToExpect =
+          '🌤️ Premenlivé počasie – vývoj zatiaľ nie je jednoznačný.';
+    }
+
+    if (phoneMoving) {
+      _forecastReasons.add(
+        'Pozor: telefón bol v pohybe, preto je tlakový signál menej spoľahlivý.',
+      );
     }
   }
 
   // ==========================================================
-  // ČO ČAKAŤ
+  // JEDNOTLIVÉ ČASOVÉ ODHADY
   // ==========================================================
 
-  void _calculateExpectedWeather() {
-    final double score =
-        _rainScore;
+  String _shortTermDescription(
+    double score,
+    double cloud,
+    double cloudChange,
+    MeteoApiData? meteo,
+    int hoursAhead,
+  ) {
+    int probability =
+        _probabilityAtHour(
+      meteo,
+      hoursAhead,
+    );
 
-    final int? probability =
-        _rainProbability;
-
-    final double? amount =
-        _rainAmount;
-
-    final bool pressureFalling =
-        _pressureChange < -0.5;
-
-    final bool pressureStronglyFalling =
-        _pressureChange < -1.5;
-
-    final bool cloudsIncreasing =
-        _cloudChange > 8;
-
-    final bool cloudsStronglyIncreasing =
-        _cloudChange > 15;
-
-    final bool darkSky =
-        _darkClouds > 25;
+    double precipitation =
+        _precipitationAtHour(
+      meteo,
+      hoursAhead,
+    );
 
     /*
-     * ========================================================
-     * VEĽMI VYSOKÉ RIZIKO
-     * ========================================================
+     * Ak máme hodinovú predpoveď,
+     * použijeme ju ako ďalší signál.
      */
 
-    if (score >= 75) {
-      _whatToExpect =
-          '🌧️ Očakávaj zrážky';
+    final double localScore =
+        (score * 0.55) +
+            (probability * 0.45);
 
-      _expectedTime =
-          'Najbližšia 1 hodina';
-
-      _expectedDetail =
-          'Viaceré signály sa zhodujú: '
-          'oblačnosť, tmavé oblasti, tlak '
-          'a meteorologická predpoveď '
-          'podporujú možnosť dažďa.';
-
-      return;
-    }
-
-    /*
-     * ========================================================
-     * VYSOKÉ RIZIKO
-     * ========================================================
-     */
-
-    if (score >= 60) {
-      _whatToExpect =
-          '🌦️ Dážď je pomerne pravdepodobný';
-
-      _expectedTime =
-          'Najbližšia 1–2 hodiny';
-
-      _expectedDetail =
-          'Podmienky sa vyvíjajú smerom '
-          'k zrážkam. Sleduj najmä vývoj '
-          'oblačnosti a tlak.';
-
-      return;
-    }
-
-    /*
-     * ========================================================
-     * STREDNÉ RIZIKO
-     * ========================================================
-     */
-
-    if (score >= 40) {
-      _whatToExpect =
-          '🌦️ Zrážky sú možné';
-
-      _expectedTime =
-          'Najbližšie 1–3 hodiny';
-
-      if (cloudsIncreasing ||
-          pressureFalling) {
-        _expectedDetail =
-            'Oblačnosť alebo tlak naznačujú '
-            'zmenu počasia, ale signály zatiaľ '
-            'nie sú dostatočne silné na istý '
-            'dážď.';
-      } else {
-        _expectedDetail =
-            'Meteorologická predpoveď pripúšťa '
-            'zrážky, ale lokálne podmienky '
-            'zatiaľ neukazujú výrazný nástup.';
+    if (precipitation >= 2.0 ||
+        localScore >= 70) {
+      if (hoursAhead == 0) {
+        return '🌧️ Zvýšené riziko dažďa. '
+            'Možné zrážky alebo blížiaca sa prehánka.';
       }
 
-      return;
+      return '🌧️ Zvýšené riziko dažďa a zrážok.';
     }
 
-    /*
-     * ========================================================
-     * NÍZKE RIZIKO
-     * ========================================================
-     */
-
-    if (score >= 20) {
-      _whatToExpect =
-          '🌤️ Skôr bez zrážok';
-
-      _expectedTime =
-          'Najbližšia 1–3 hodiny';
-
-      if (cloudsIncreasing ||
-          darkSky) {
-        _expectedDetail =
-            'Obloha sa môže postupne '
-            'zaťahovať, ale momentálne '
-            'nie sú dostatočne silné signály '
-            'pre dážď.';
-      } else if (pressureFalling) {
-        _expectedDetail =
-            'Tlak mierne klesá. Môže ísť '
-            'o začiatok zmeny počasia, '
-            'zatiaľ však bez výrazného '
-            'signálu zrážok.';
-      } else {
-        _expectedDetail =
-            'Aktuálne podmienky sú skôr '
-            'priaznivé a výrazný nástup '
-            'zrážok sa neočakáva.';
-      }
-
-      return;
+    if (precipitation >= 0.5 ||
+        localScore >= 50) {
+      return '🌦️ Možné prehánky alebo '
+          'prechodné zrážky.';
     }
 
-    /*
-     * ========================================================
-     * VEĽMI NÍZKE RIZIKO
-     * ========================================================
-     */
-
-    _whatToExpect =
-        '☀️ Dážď sa momentálne neočakáva';
-
-    _expectedTime =
-        'Najbližšie 1–3 hodiny';
-
-    _expectedDetail =
-        'Kamera, tlak a dostupná '
-        'meteorologická predpoveď '
-        'momentálne neposkytujú výrazný '
-        'signál blížiacich sa zrážok.';
-
-    /*
-     * Jemné spresnenie podľa Open-Meteo.
-     */
-
-    if (probability != null &&
-        probability < 15 &&
-        (amount == null ||
-            amount < 0.1)) {
-      _expectedDetail +=
-          ' Predpoveď zrážok je veľmi nízka.';
+    if (cloudChange > 15 &&
+        cloud > 50) {
+      return '☁️ Oblačnosť môže ďalej pribúdať.';
     }
 
-    /*
-     * Ak oblačnosť výrazne pribúda,
-     * upozorníme používateľa aj pri nízkom
-     * celkovom skóre.
-     */
-
-    if (cloudsStronglyIncreasing) {
-      _expectedDetail +=
-          ' Oblačnosť však počas snímania '
-          'výrazne pribúdala.';
+    if (cloudChange < -15 &&
+        cloud < 60) {
+      return '🌤️ Oblačnosť môže ustupovať a '
+          'počasie sa môže zlepšovať.';
     }
 
-    if (pressureStronglyFalling) {
-      _expectedDetail +=
-          ' Zaznamenaný je výraznejší '
-          'pokles tlaku.';
+    if (cloud < 35) {
+      return '☀️ Skôr stabilné počasie, '
+          'nízke riziko zrážok.';
     }
+
+    return '🌤️ Premenlivá oblačnosť, '
+        'bez jasného signálu výraznej zmeny.';
   }
 
   // ==========================================================
-  // OPEN METEO – PRAVDEPODOBNOSŤ
+  // ÚDAJE Z OPEN-METEO
   // ==========================================================
+
+  int _probabilityAtHour(
+    MeteoApiData? meteo,
+    int hoursAhead,
+  ) {
+    if (meteo == null ||
+        meteo.hourlyPrecipitationProbability ==
+            null ||
+        meteo.hourlyPrecipitationProbability!
+            .isEmpty) {
+      return _rainProbability ?? 0;
+    }
+
+    final list =
+        meteo.hourlyPrecipitationProbability!;
+
+    if (list.isEmpty) {
+      return _rainProbability ?? 0;
+    }
+
+    final int index =
+        math.min(
+      hoursAhead,
+      list.length - 1,
+    );
+
+    return list[index];
+  }
+
+  double _precipitationAtHour(
+    MeteoApiData? meteo,
+    int hoursAhead,
+  ) {
+    if (meteo == null ||
+        meteo.hourlyPrecipitation ==
+            null ||
+        meteo.hourlyPrecipitation!
+            .isEmpty) {
+      return _rainAmount ?? 0.0;
+    }
+
+    final list =
+        meteo.hourlyPrecipitation!;
+
+    if (list.isEmpty) {
+      return _rainAmount ?? 0.0;
+    }
+
+    final int index =
+        math.min(
+      hoursAhead,
+      list.length - 1,
+    );
+
+    return list[index];
+  }
 
   int? _getCurrentRainProbability(
     MeteoApiData? meteo,
@@ -864,46 +965,19 @@ class _SkyAnalyzerWidgetState
         .first;
   }
 
-  // ==========================================================
-  // OPEN METEO – MNOŽSTVO
-  // ==========================================================
-
   double? _getCurrentRainAmount(
     MeteoApiData? meteo,
   ) {
     if (meteo == null ||
         meteo.hourlyPrecipitation == null ||
-        meteo.hourlyPrecipitation!.isEmpty) {
+        meteo.hourlyPrecipitation!
+            .isEmpty) {
       return null;
     }
 
     return meteo
         .hourlyPrecipitation!
         .first;
-  }
-
-  // ==========================================================
-  // VYMAZANIE FOTOGRAFIÍ
-  // ==========================================================
-
-  Future<void> _deleteCapturedImages() async {
-    for (final image
-        in _capturedImages) {
-      try {
-        final file =
-            File(image.path);
-
-        if (await file.exists()) {
-          await file.delete();
-        }
-      } catch (e) {
-        debugPrint(
-          'Nepodarilo sa vymazať snímku: $e',
-        );
-      }
-    }
-
-    _capturedImages.clear();
   }
 
   // ==========================================================
@@ -940,182 +1014,97 @@ class _SkyAnalyzerWidgetState
                       Colors.blueAccent,
                 ),
 
-                const SizedBox(
-                  height: 12,
-                ),
+                const SizedBox(height: 12),
 
                 const Text(
                   'VÝSLEDOK ANALÝZY',
-                  style:
-                      TextStyle(
-                    color:
-                        Colors.white,
+                  style: TextStyle(
+                    color: Colors.white,
                     fontSize: 20,
                     fontWeight:
                         FontWeight.bold,
                   ),
                 ),
 
-                const SizedBox(
-                  height: 18,
-                ),
+                const SizedBox(height: 18),
 
                 Text(
                   _weatherResult,
                   textAlign:
                       TextAlign.center,
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.white,
+                  style: const TextStyle(
+                    color: Colors.white,
                     fontSize: 24,
                     fontWeight:
                         FontWeight.bold,
                   ),
                 ),
 
-                const SizedBox(
-                  height: 10,
-                ),
+                const SizedBox(height: 10),
 
                 Text(
                   _weatherDescription,
                   textAlign:
                       TextAlign.center,
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.white70,
+                  style: const TextStyle(
+                    color: Colors.white70,
                     fontSize: 14,
                   ),
                 ),
 
-                const SizedBox(
-                  height: 22,
-                ),
+                const SizedBox(height: 22),
 
-                // ======================================================
+                // ==================================================
                 // ČO ČAKAŤ
-                // ======================================================
+                // ==================================================
 
-                Container(
-                  width:
-                      double.infinity,
-                  padding:
-                      const EdgeInsets.all(
-                    18,
-                  ),
-                  decoration:
-                      BoxDecoration(
-                    gradient:
-                        LinearGradient(
-                      colors: [
-                        Colors.blue
-                            .withOpacity(
-                          0.25,
-                        ),
-                        Colors.black
-                            .withOpacity(
-                          0.25,
-                        ),
-                      ],
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(
-                      18,
-                    ),
-                    border:
-                        Border.all(
-                      color:
-                          Colors.blueAccent
-                              .withOpacity(
-                        0.35,
-                      ),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'ČO ČAKAŤ',
-                        style:
-                            TextStyle(
-                          color:
-                              Colors.white70,
-                          fontSize:
-                              13,
-                          fontWeight:
-                              FontWeight.bold,
-                          letterSpacing:
-                              1.2,
-                        ),
-                      ),
+                _buildWhatToExpect(),
 
-                      const SizedBox(
-                        height: 12,
-                      ),
+                const SizedBox(height: 18),
 
-                      Text(
-                        _whatToExpect,
-                        textAlign:
-                            TextAlign.center,
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.white,
-                          fontSize:
-                              22,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
+                // ==================================================
+                // 30 MIN
+                // ==================================================
 
-                      const SizedBox(
-                        height: 8,
-                      ),
-
-                      Text(
-                        _expectedTime,
-                        textAlign:
-                            TextAlign.center,
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.blueAccent,
-                          fontSize:
-                              15,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height: 12,
-                      ),
-
-                      Text(
-                        _expectedDetail,
-                        textAlign:
-                            TextAlign.center,
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.white70,
-                          fontSize:
-                              13,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
+                _buildForecastCard(
+                  icon: '⏱️',
+                  title: 'O 30 MINÚT',
+                  text: _forecast30Min,
                 ),
 
-                const SizedBox(
-                  height: 22,
+                const SizedBox(height: 10),
+
+                // ==================================================
+                // 1 HOD
+                // ==================================================
+
+                _buildForecastCard(
+                  icon: '🕐',
+                  title: 'O 1 HODINU',
+                  text: _forecast1Hour,
                 ),
 
-                // ======================================================
-                // PARAMETRE
-                // ======================================================
+                const SizedBox(height: 10),
+
+                // ==================================================
+                // 3 HOD
+                // ==================================================
+
+                _buildForecastCard(
+                  icon: '🕒',
+                  title: 'O 3 HODINY',
+                  text: _forecast3Hours,
+                ),
+
+                const SizedBox(height: 18),
+
+                // ==================================================
+                // PREČO
+                // ==================================================
+
+                _buildReasonsCard(),
+
+                const SizedBox(height: 24),
 
                 _buildResultRow(
                   '☁️ Oblačnosť',
@@ -1145,8 +1134,7 @@ class _SkyAnalyzerWidgetState
 
                 const Divider(
                   height: 28,
-                  color:
-                      Colors.white12,
+                  color: Colors.white12,
                 ),
 
                 _buildResultRow(
@@ -1165,8 +1153,8 @@ class _SkyAnalyzerWidgetState
                 ),
 
                 _buildResultRow(
-                  '📊 Riziko zrážok',
-                  '${_rainScore.toStringAsFixed(0)} / 100',
+                  '📊 Skóre zrážok',
+                  '$_rainScore / 100',
                 ),
 
                 _buildResultRow(
@@ -1177,8 +1165,7 @@ class _SkyAnalyzerWidgetState
                       : 'bez pohybu',
                 ),
 
-                if (_rainProbability !=
-                    null)
+                if (_rainProbability != null)
                   _buildResultRow(
                     '🌧️ Predpoveď zrážok',
                     '$_rainProbability %',
@@ -1190,61 +1177,40 @@ class _SkyAnalyzerWidgetState
                     '${_rainAmount!.toStringAsFixed(1)} mm',
                   ),
 
-                const SizedBox(
-                  height: 20,
-                ),
+                const SizedBox(height: 20),
 
                 Container(
-                  width:
-                      double.infinity,
+                  width: double.infinity,
                   padding:
-                      const EdgeInsets.all(
-                    12,
-                  ),
+                      const EdgeInsets.all(12),
                   decoration:
                       BoxDecoration(
-                    color:
-                        Colors.black26,
+                    color: Colors.black26,
                     borderRadius:
-                        BorderRadius.circular(
-                      12,
-                    ),
+                        BorderRadius.circular(12),
                   ),
-                  child:
-                      const Text(
-                    'Odhad kombinuje obrazovú '
-                    'analýzu oblohy, vývoj '
-                    'oblačnosti, tlakový trend, '
-                    'detekciu pohybu telefónu '
-                    'a meteorologickú predpoveď.',
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.white60,
-                      fontSize:
-                          12,
+                  child: const Text(
+                    'Odhad budúceho vývoja je kombinovaný '
+                    'odhad z obrazovej analýzy, tlakového '
+                    'trendu a dostupnej meteorologickej '
+                    'predpovede. Nejde o profesionálnu '
+                    'meteorologickú predpoveď.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 12,
                     ),
                   ),
                 ),
 
-                const SizedBox(
-                  height: 20,
-                ),
+                const SizedBox(height: 20),
 
                 SizedBox(
-                  width:
-                      double.infinity,
-                  child:
-                      ElevatedButton(
-                    onPressed:
-                        () =>
-                            Navigator.pop(
-                      context,
-                    ),
-                    child:
-                        const Text(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () =>
+                        Navigator.pop(context),
+                    child: const Text(
                       'HOTOVO',
                     ),
                   ),
@@ -1254,6 +1220,209 @@ class _SkyAnalyzerWidgetState
           ),
         );
       },
+    );
+  }
+
+  // ==========================================================
+  // ČO ČAKAŤ
+  // ==========================================================
+
+  Widget _buildWhatToExpect() {
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.blueAccent
+                .withOpacity(0.30),
+            Colors.black26,
+          ],
+        ),
+        borderRadius:
+            BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.blueAccent
+              .withOpacity(0.45),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '🔮 ČO ČAKAŤ',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight:
+                  FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          Text(
+            _whatToExpect,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight:
+                  FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // FORECAST CARD
+  // ==========================================================
+
+  Widget _buildForecastCard({
+    required String icon,
+    required String title,
+    required String text,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.black26,
+        borderRadius:
+            BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.white12,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Text(
+            icon,
+            style:
+                const TextStyle(
+              fontSize: 25,
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white70,
+                    fontSize: 12,
+                    fontWeight:
+                        FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 5),
+
+                Text(
+                  text,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // PREČO
+  // ==========================================================
+
+  Widget _buildReasonsCard() {
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black26,
+        borderRadius:
+            BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '🧠 PREČO TO APLIKÁCIA PREDPOKLADÁ',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight:
+                  FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          if (_forecastReasons.isEmpty)
+            const Text(
+              'Z dostupných údajov nebol získaný dostatočne silný signál.',
+              style: TextStyle(
+                color: Colors.white60,
+                fontSize: 13,
+              ),
+            )
+          else
+            ..._forecastReasons.map(
+              (reason) => Padding(
+                padding:
+                    const EdgeInsets.only(
+                  bottom: 8,
+                ),
+                child: Row(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '• ',
+                      style: TextStyle(
+                        color:
+                            Colors.blueAccent,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        reason,
+                        style:
+                            const TextStyle(
+                          color:
+                              Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1286,15 +1455,14 @@ class _SkyAnalyzerWidgetState
               ),
             ),
           ),
-          const SizedBox(
-            width: 12,
-          ),
+
+          const SizedBox(width: 12),
+
           Text(
             value,
             style:
                 const TextStyle(
-              color:
-                  Colors.white,
+              color: Colors.white,
               fontSize: 15,
               fontWeight:
                   FontWeight.bold,
@@ -1303,6 +1471,30 @@ class _SkyAnalyzerWidgetState
         ],
       ),
     );
+  }
+
+  // ==========================================================
+  // MAZANIE FOTOGRAFIÍ
+  // ==========================================================
+
+  Future<void> _deleteCapturedImages() async {
+    for (final image
+        in _capturedImages) {
+      try {
+        final file =
+            File(image.path);
+
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (e) {
+        debugPrint(
+          'Nepodarilo sa vymazať snímku: $e',
+        );
+      }
+    }
+
+    _capturedImages.clear();
   }
 
   // ==========================================================
@@ -1331,14 +1523,11 @@ class _SkyAnalyzerWidgetState
           children: [
             CircularProgressIndicator(),
 
-            SizedBox(
-              height: 16,
-            ),
+            SizedBox(height: 16),
 
             Text(
               'Spúšťam kameru...',
-              style:
-                  TextStyle(
+              style: TextStyle(
                 color:
                     Colors.white70,
               ),
@@ -1365,9 +1554,7 @@ class _SkyAnalyzerWidgetState
                     Colors.white54,
               ),
 
-              const SizedBox(
-                height: 16,
-              ),
+              const SizedBox(height: 16),
 
               Text(
                 _error!,
@@ -1380,9 +1567,7 @@ class _SkyAnalyzerWidgetState
                 ),
               ),
 
-              const SizedBox(
-                height: 20,
-              ),
+              const SizedBox(height: 20),
 
               ElevatedButton.icon(
                 onPressed: () {
@@ -1418,8 +1603,7 @@ class _SkyAnalyzerWidgetState
       return const Center(
         child: Text(
           'Kamera nie je pripravená.',
-          style:
-              TextStyle(
+          style: TextStyle(
             color:
                 Colors.white70,
           ),
@@ -1434,18 +1618,13 @@ class _SkyAnalyzerWidgetState
           controller,
         ),
 
-        // ======================================================
-        // NADPIS
-        // ======================================================
-
         Positioned(
           top: 16,
           left: 16,
           right: 16,
           child: Container(
             padding:
-                const EdgeInsets
-                    .symmetric(
+                const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 12,
             ),
@@ -1458,8 +1637,7 @@ class _SkyAnalyzerWidgetState
                 14,
               ),
             ),
-            child:
-                const Column(
+            child: const Column(
               children: [
                 Text(
                   'ANALÝZA OBLOHY',
@@ -1467,16 +1645,13 @@ class _SkyAnalyzerWidgetState
                       TextStyle(
                     color:
                         Colors.white,
-                    fontSize:
-                        18,
+                    fontSize: 18,
                     fontWeight:
                         FontWeight.bold,
                   ),
                 ),
 
-                SizedBox(
-                  height: 4,
-                ),
+                SizedBox(height: 4),
 
                 Text(
                   'Namierte telefón na oblohu',
@@ -1486,18 +1661,13 @@ class _SkyAnalyzerWidgetState
                       TextStyle(
                     color:
                         Colors.white70,
-                    fontSize:
-                        14,
+                    fontSize: 14,
                   ),
                 ),
               ],
             ),
           ),
         ),
-
-        // ======================================================
-        // ANALÝZA
-        // ======================================================
 
         if (_isAnalyzing)
           Positioned(
@@ -1518,8 +1688,7 @@ class _SkyAnalyzerWidgetState
                   16,
                 ),
               ),
-              child:
-                  Column(
+              child: Column(
                 children: [
                   const CircularProgressIndicator(),
 
@@ -1533,8 +1702,7 @@ class _SkyAnalyzerWidgetState
                         TextStyle(
                       color:
                           Colors.white,
-                      fontSize:
-                          16,
+                      fontSize: 16,
                       fontWeight:
                           FontWeight.bold,
                     ),
@@ -1564,18 +1732,13 @@ class _SkyAnalyzerWidgetState
                         TextStyle(
                       color:
                           Colors.white54,
-                      fontSize:
-                          12,
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
           ),
-
-        // ======================================================
-        // TLAČIDLO
-        // ======================================================
 
         Positioned(
           left: 24,
@@ -1618,9 +1781,9 @@ class _SkyAnalyzerWidgetState
   }
 }
 
-// ==========================================================
-// MODEL ANALÝZY
-// ==========================================================
+// ============================================================
+// VÝSLEDOK ANALÝZY JEDNEJ FOTOGRAFIE
+// ============================================================
 
 class _SkyAnalysis {
   final double cloudCoverage;
