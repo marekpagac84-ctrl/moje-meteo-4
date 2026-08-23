@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 
 import '../models/meteo_data.dart';
@@ -36,7 +39,86 @@ class _SkyAnalyzerWidgetState
 
   WeatherIntelligenceResult? _result;
 
+  CameraController? _cameraController;
+
+  Uint8List? _skyImage;
+
+  bool _cameraReady = false;
+  bool _cameraLoading = false;
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  @override
+  void dispose() {
+    _cameraController?.dispose();
+    super.dispose();
+  }
+
+  // ==========================================================
+  // KAMERA
+  // ==========================================================
+
+  Future<void> _initCamera() async {
+    if (_cameraLoading) return;
+
+    _cameraLoading = true;
+
+    try {
+      final cameras =
+          await availableCameras();
+
+      if (cameras.isEmpty) {
+        return;
+      }
+
+      CameraDescription? selected;
+
+      for (final camera in cameras) {
+        if (camera.lensDirection ==
+            CameraLensDirection.back) {
+          selected = camera;
+          break;
+        }
+      }
+
+      selected ??= cameras.first;
+
+      final controller =
+          CameraController(
+        selected,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+
+      await controller.initialize();
+
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+
+      setState(() {
+        _cameraController =
+            controller;
+        _cameraReady = true;
+      });
+    } catch (e) {
+      debugPrint(
+        'Camera initialization error: $e',
+      );
+    } finally {
+      _cameraLoading = false;
+    }
+  }
+
+  // ==========================================================
+  // ANALÝZA
+  // ==========================================================
 
   Future<void> _analyze() async {
     if (_loading) return;
@@ -45,156 +127,84 @@ class _SkyAnalyzerWidgetState
       _loading = true;
     });
 
-    final result =
-        await _service.analyze(
-      lat: widget.lat,
-      lng: widget.lng,
-      pressure:
-          widget.barometer.currentPressure,
-      pressureChangeRate:
-          widget.barometer.pressureChangeRate,
-      heading: widget.heading,
-      tiltX: widget.tiltX,
-      tiltY: widget.tiltY,
-    );
+    try {
+      Uint8List? imageBytes;
 
-    if (!mounted) return;
+      if (_cameraReady &&
+          _cameraController != null &&
+          _cameraController!
+              .value
+              .isInitialized) {
+        try {
+          final XFile file =
+              await _cameraController!
+                  .takePicture();
 
-    setState(() {
-      _result = result;
-      _loading = false;
-    });
+          imageBytes =
+              await file.readAsBytes();
+
+          if (mounted) {
+            setState(() {
+              _skyImage =
+                  imageBytes;
+            });
+          }
+        } catch (e) {
+          debugPrint(
+            'Camera capture error: $e',
+          );
+        }
+      }
+
+      final result =
+          await _service.analyze(
+        lat: widget.lat,
+        lng: widget.lng,
+        pressure:
+            widget.barometer.currentPressure,
+        pressureChangeRate:
+            widget.barometer.pressureChangeRate,
+        heading:
+            widget.heading,
+        tiltX:
+            widget.tiltX,
+        tiltY:
+            widget.tiltY,
+        imageBytes:
+            imageBytes,
+        meteoData:
+            widget.meteoData,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _result = result;
+        _loading = false;
+      });
+    } catch (e) {
+      debugPrint(
+        'Analysis error: $e',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+      });
+    }
   }
+
+  // ==========================================================
+  // BUILD
+  // ==========================================================
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       child: Column(
         children: [
-          Container(
-            width: double.infinity,
-            padding:
-                const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color:
-                  const Color(0xFF1E293B),
-              borderRadius:
-                  BorderRadius.circular(18),
-              border: Border.all(
-                color: Colors.white12,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '🔎 LOKÁLNA ANALÝZA POČASIA',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight:
-                        FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                const Text(
-                  'Aplikácia spojí údaje z telefónu '
-                  's online meteorologickými dátami '
-                  'a pokúsi sa odhadnúť situáciu '
-                  'priamo na tvojej polohe.',
-                  style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                _dataRow(
-                  '📍 Poloha',
-                  '${widget.lat.toStringAsFixed(4)}, '
-                      '${widget.lng.toStringAsFixed(4)}',
-                ),
-
-                _dataRow(
-                  '🧭 Smer telefónu',
-                  '${widget.heading.toStringAsFixed(0)}°',
-                ),
-
-                _dataRow(
-                  '📐 Náklon X',
-                  '${widget.tiltX.toStringAsFixed(1)}°',
-                ),
-
-                _dataRow(
-                  '📐 Náklon Y',
-                  '${widget.tiltY.toStringAsFixed(1)}°',
-                ),
-
-                _dataRow(
-                  '🌡️ Tlak',
-                  widget.barometer.currentPressure > 0
-                      ? '${widget.barometer.currentPressure.toStringAsFixed(1)} hPa'
-                      : 'N/A',
-                ),
-
-                _dataRow(
-                  '📉 Zmena tlaku',
-                  '${widget.barometer.pressureChangeRate.toStringAsFixed(3)} hPa',
-                ),
-
-                const SizedBox(height: 18),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed:
-                        _loading ? null : _analyze,
-                    icon: _loading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child:
-                                CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.radar_rounded,
-                          ),
-                    label: Text(
-                      _loading
-                          ? 'VYHODNOCUJEM...'
-                          : 'VYHODNOTIŤ SITUÁCIU',
-                    ),
-                    style:
-                        ElevatedButton.styleFrom(
-                      backgroundColor:
-                          const Color(0xFF2563EB),
-                      foregroundColor:
-                          Colors.white,
-                      padding:
-                          const EdgeInsets.symmetric(
-                        vertical: 13,
-                      ),
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(
-                          12,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildAnalyzerCard(),
 
           if (_result != null) ...[
             const SizedBox(height: 12),
@@ -205,15 +215,176 @@ class _SkyAnalyzerWidgetState
     );
   }
 
+  // ==========================================================
+  // HLAVNÝ PANEL
+  // ==========================================================
+
+  Widget _buildAnalyzerCard() {
+    return Container(
+      width: double.infinity,
+      padding:
+          const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color:
+            const Color(0xFF1E293B),
+        borderRadius:
+            BorderRadius.circular(18),
+        border: Border.all(
+          color:
+              Colors.white12,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '🔎 LOKÁLNA ANALÝZA POČASIA',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight:
+                  FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          const Text(
+            'Namier telefón na oblohu. '
+            'Aplikácia spojí obraz oblohy '
+            's polohou, smerom telefónu, '
+            'barometrom a dostupnými '
+            'meteorologickými dátami.',
+            style: TextStyle(
+              color: Colors.white60,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          _dataRow(
+            '📍 Poloha',
+            '${widget.lat.toStringAsFixed(4)}, '
+                '${widget.lng.toStringAsFixed(4)}',
+          ),
+
+          _dataRow(
+            '🧭 Smer telefónu',
+            '${widget.heading.toStringAsFixed(0)}°',
+          ),
+
+          _dataRow(
+            '📐 Náklon X',
+            '${widget.tiltX.toStringAsFixed(1)}°',
+          ),
+
+          _dataRow(
+            '📐 Náklon Y',
+            '${widget.tiltY.toStringAsFixed(1)}°',
+          ),
+
+          _dataRow(
+            '🌡️ Tlak',
+            widget.barometer.currentPressure > 0
+                ? '${widget.barometer.currentPressure.toStringAsFixed(1)} hPa'
+                : 'N/A',
+          ),
+
+          _dataRow(
+            '📉 Zmena tlaku',
+            '${widget.barometer.pressureChangeRate.toStringAsFixed(3)} hPa',
+          ),
+
+          const SizedBox(height: 16),
+
+          if (_skyImage != null)
+            ClipRRect(
+              borderRadius:
+                  BorderRadius.circular(12),
+              child: Image.memory(
+                _skyImage!,
+                width:
+                    double.infinity,
+                height: 180,
+                fit: BoxFit.cover,
+              ),
+            ),
+
+          if (_skyImage != null)
+            const SizedBox(height: 12),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed:
+                  _loading
+                      ? null
+                      : _analyze,
+              icon: _loading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child:
+                          CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(
+                      Icons
+                          .camera_alt_rounded,
+                    ),
+              label: Text(
+                _loading
+                    ? 'VYHODNOCUJEM...'
+                    : 'NAMIERIŤ NA OBLOHU A ANALYZOVAŤ',
+              ),
+              style:
+                  ElevatedButton.styleFrom(
+                backgroundColor:
+                    const Color(
+                  0xFF2563EB,
+                ),
+                foregroundColor:
+                    Colors.white,
+                padding:
+                    const EdgeInsets
+                        .symmetric(
+                  vertical: 13,
+                ),
+                shape:
+                    RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(
+                    12,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // VÝSLEDOK
+  // ==========================================================
+
   Widget _buildResult(
     WeatherIntelligenceResult result,
   ) {
     Color accent;
 
     if (result.stormNearby) {
-      accent = Colors.redAccent;
+      accent =
+          Colors.redAccent;
     } else if (result.rainLikelySoon) {
-      accent = Colors.lightBlueAccent;
+      accent =
+          Colors.lightBlueAccent;
     } else {
       accent = Colors.amber;
     }
@@ -242,10 +413,13 @@ class _SkyAnalyzerWidgetState
             children: [
               Icon(
                 result.stormNearby
-                    ? Icons.thunderstorm_rounded
+                    ? Icons
+                        .thunderstorm_rounded
                     : result.rainLikelySoon
-                        ? Icons.water_drop_rounded
-                        : Icons.wb_sunny_rounded,
+                        ? Icons
+                            .water_drop_rounded
+                        : Icons
+                            .wb_sunny_rounded,
                 color: accent,
                 size: 34,
               ),
@@ -255,12 +429,15 @@ class _SkyAnalyzerWidgetState
               Expanded(
                 child: Column(
                   crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      CrossAxisAlignment
+                          .start,
                   children: [
                     Text(
                       result.title,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.white,
                         fontSize: 16,
                         fontWeight:
                             FontWeight.bold,
@@ -271,8 +448,10 @@ class _SkyAnalyzerWidgetState
 
                     Text(
                       result.description,
-                      style: const TextStyle(
-                        color: Colors.white70,
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.white70,
                         fontSize: 12,
                         height: 1.4,
                       ),
@@ -300,8 +479,10 @@ class _SkyAnalyzerWidgetState
           ClipRRect(
             borderRadius:
                 BorderRadius.circular(5),
-            child: LinearProgressIndicator(
-              value: result.confidence,
+            child:
+                LinearProgressIndicator(
+              value:
+                  result.confidence,
               minHeight: 7,
               backgroundColor:
                   Colors.white12,
@@ -314,15 +495,17 @@ class _SkyAnalyzerWidgetState
 
           const SizedBox(height: 18),
 
-          if (result.rainProbability != null)
+          if (result.rainProbability !=
+              null)
             _dataRow(
               '🌧️ Pravdepodobnosť zrážok',
               '${result.rainProbability} %',
             ),
 
-          if (result.precipitation != null)
+          if (result.precipitation !=
+              null)
             _dataRow(
-              '💧 Aktuálne zrážky',
+              '💧 Zrážky',
               '${result.precipitation!.toStringAsFixed(1)} mm',
             ),
 
@@ -338,6 +521,20 @@ class _SkyAnalyzerWidgetState
               '${result.windDirection!.toStringAsFixed(0)}°',
             ),
 
+          if (result.radarDistanceKm !=
+              null)
+            _dataRow(
+              '🌧️ Radarová vzdialenosť',
+              '${result.radarDistanceKm!.toStringAsFixed(1)} km',
+            ),
+
+          if (result.lightningDistanceKm !=
+              null)
+            _dataRow(
+              '⚡ Blesková aktivita',
+              '${result.lightningDistanceKm!.toStringAsFixed(1)} km',
+            ),
+
           if (result.evidence.isNotEmpty) ...[
             const Divider(
               color: Colors.white12,
@@ -347,7 +544,8 @@ class _SkyAnalyzerWidgetState
             const Text(
               'ČO K TOMU VIEDLO',
               style: TextStyle(
-                color: Colors.white54,
+                color:
+                    Colors.white54,
                 fontSize: 10,
                 fontWeight:
                     FontWeight.bold,
@@ -366,11 +564,13 @@ class _SkyAnalyzerWidgetState
                 ),
                 child: Row(
                   crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      CrossAxisAlignment
+                          .start,
                   children: [
                     Text(
                       '• ',
-                      style: TextStyle(
+                      style:
+                          TextStyle(
                         color: accent,
                       ),
                     ),
@@ -405,12 +605,15 @@ class _SkyAnalyzerWidgetState
       ),
       child: Row(
         mainAxisAlignment:
-            MainAxisAlignment.spaceBetween,
+            MainAxisAlignment
+                .spaceBetween,
         children: [
           Text(
             name,
-            style: const TextStyle(
-              color: Colors.white60,
+            style:
+                const TextStyle(
+              color:
+                  Colors.white60,
               fontSize: 12,
             ),
           ),
@@ -419,8 +622,10 @@ class _SkyAnalyzerWidgetState
               value,
               textAlign:
                   TextAlign.right,
-              style: const TextStyle(
-                color: Colors.white,
+              style:
+                  const TextStyle(
+                color:
+                    Colors.white,
                 fontSize: 12,
                 fontWeight:
                     FontWeight.bold,
