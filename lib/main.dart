@@ -9,6 +9,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'models/meteo_data.dart';
+
 import 'components/header_bar.dart';
 import 'components/sensor_panel.dart';
 import 'components/barometer_warning_widget.dart';
@@ -47,16 +48,32 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  // ==========================================================
+  // MAPA
+  // ==========================================================
+
   bool _showRadar = true;
   bool _useWindyView = true;
-  bool _isLoadingMeteo = false;
 
+  // ==========================================================
+  // METEO
+  // ==========================================================
+
+  bool _isLoadingMeteo = false;
   MeteoApiData? _meteoData;
+
+  // ==========================================================
+  // STRÁNKY
+  // ==========================================================
 
   int _currentPage = 0;
 
   final PageController _pageController =
       PageController();
+
+  // ==========================================================
+  // GPS
+  // ==========================================================
 
   double _lat = 48.7576;
   double _lng = 17.8309;
@@ -79,7 +96,7 @@ class _MainScreenState extends State<MainScreen> {
   );
 
   // ==========================================================
-  // RAW ACCELEROMETER
+  // ACCELEROMETER
   // ==========================================================
 
   double _accelX = 0.0;
@@ -89,7 +106,7 @@ class _MainScreenState extends State<MainScreen> {
   double _accelerationMagnitude = 0.0;
 
   // ==========================================================
-  // GYROSCOPE
+  // GYRO
   // ==========================================================
 
   double _gyroX = 0.0;
@@ -99,7 +116,7 @@ class _MainScreenState extends State<MainScreen> {
   double _rotationMagnitude = 0.0;
 
   // ==========================================================
-  // MAGNETOMETER / KOMPAS
+  // MAGNETOMETER
   // ==========================================================
 
   double _magX = 0.0;
@@ -109,14 +126,14 @@ class _MainScreenState extends State<MainScreen> {
   double _heading = 0.0;
 
   // ==========================================================
-  // ORIENTÁCIA
+  // NÁKLON
   // ==========================================================
 
   double _tiltX = 0.0;
   double _tiltY = 0.0;
 
   // ==========================================================
-  // SENZORY
+  // SUBSCRIPTIONS
   // ==========================================================
 
   StreamSubscription<UserAccelerometerEvent>?
@@ -206,11 +223,11 @@ class _MainScreenState extends State<MainScreen> {
       debugPrint('GPS error: $e');
     }
 
-    _fetchWeatherData();
+    await _fetchWeatherData();
   }
 
   // ==========================================================
-  // VŠETKY SENZORY
+  // SENZORY
   // ==========================================================
 
   void _initSensors() {
@@ -319,7 +336,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================================
-  // MAGNETOMETER / KOMPAS
+  // MAGNETOMETER
   // ==========================================================
 
   void _initMagnetometer() {
@@ -363,11 +380,9 @@ class _MainScreenState extends State<MainScreen> {
             return;
           }
 
-          final List<PressurePoint>
-              history =
-              List.from(
-            _barometerState
-                .pressureHistory,
+          final List<PressurePoint> history =
+              List<PressurePoint>.from(
+            _barometerState.pressureHistory,
           );
 
           final double oldPressure =
@@ -376,8 +391,7 @@ class _MainScreenState extends State<MainScreen> {
           double rate = 0.0;
 
           if (oldPressure > 0) {
-            rate =
-                newPressure - oldPressure;
+            rate = newPressure - oldPressure;
           }
 
           history.add(
@@ -387,7 +401,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
           );
 
-          if (history.length > 60) {
+          if (history.length > 120) {
             history.removeAt(0);
           }
 
@@ -406,7 +420,8 @@ class _MainScreenState extends State<MainScreen> {
                 _barometerState.copyWith(
               currentPressure:
                   newPressure,
-              pressureChangeRate: rate,
+              pressureChangeRate:
+                  rate,
               estimatedAltitude:
                   altitude,
               pressureHistory:
@@ -429,14 +444,6 @@ class _MainScreenState extends State<MainScreen> {
 
   // ==========================================================
   // POHYB
-  //
-  // Kombinujeme:
-  // - user accelerometer
-  // - gyroskop
-  //
-  // Gyro je dôležitý napríklad pri otočení
-  // telefónu, keď samotný user accelerometer
-  // nemusí označiť pohyb správne.
   // ==========================================================
 
   void _updateMovementState() {
@@ -453,19 +460,19 @@ class _MainScreenState extends State<MainScreen> {
             rotationMovement;
 
     if (moving !=
-        _barometerState
-            .isMovingVertically) {
+        _barometerState.isMovingVertically) {
       setState(() {
         _barometerState =
             _barometerState.copyWith(
-          isMovingVertically: moving,
+          isMovingVertically:
+              moving,
         );
       });
     }
   }
 
   // ==========================================================
-  // NÁKLON TELEFÓNU
+  // NÁKLON
   // ==========================================================
 
   void _calculateTilt() {
@@ -479,24 +486,21 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    final double tiltX =
+    _tiltX =
         math.atan2(
-          _accelX,
-          denominator,
-        ) *
+              _accelX,
+              denominator,
+            ) *
             180 /
             math.pi;
 
-    final double tiltY =
+    _tiltY =
         math.atan2(
-          _accelY,
-          _accelZ,
-        ) *
+              _accelY,
+              _accelZ,
+            ) *
             180 /
             math.pi;
-
-    _tiltX = tiltX;
-    _tiltY = tiltY;
   }
 
   // ==========================================================
@@ -520,7 +524,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================================
-  // METEO API
+  // OPEN-METEO
   // ==========================================================
 
   Future<void> _fetchWeatherData() async {
@@ -535,13 +539,17 @@ class _MainScreenState extends State<MainScreen> {
         'https://api.open-meteo.com/v1/forecast'
         '?latitude=$_lat'
         '&longitude=$_lng'
-        '&current_weather=true'
+        '&current=temperature_2m,precipitation,'
+        'weather_code,wind_speed_10m,wind_direction_10m,'
+        'surface_pressure'
         '&hourly='
         'precipitation_probability,'
         'precipitation,'
         'wind_direction_10m,'
+        'wind_speed_10m,'
         'surface_pressure'
-        '&forecast_hours=12',
+        '&forecast_hours=12'
+        '&timezone=auto',
       );
 
       final response =
@@ -581,7 +589,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================================
-  // SIMULÁCIA POKLESU TLAKU
+  // SIMULÁCIA
   // ==========================================================
 
   void _simulatePressureDrop() {
@@ -590,11 +598,9 @@ class _MainScreenState extends State<MainScreen> {
           _barometerState.currentPressure -
               3.5;
 
-      final List<PressurePoint>
-          history =
-          List.from(
-        _barometerState
-            .pressureHistory,
+      final List<PressurePoint> history =
+          List<PressurePoint>.from(
+        _barometerState.pressureHistory,
       );
 
       history.add(
@@ -616,10 +622,6 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
-  // ==========================================================
-  // SIMULÁCIA POHYBU
-  // ==========================================================
-
   void _simulateMotionToggle() {
     setState(() {
       _barometerState =
@@ -632,7 +634,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================================
-  // MAPA
+  // FULL MAP
   // ==========================================================
 
   void _openFullMap() {
@@ -849,16 +851,14 @@ class _MainScreenState extends State<MainScreen> {
                         });
                       },
                       children: [
-                        // =================================================
-                        // STRÁNKA 1 – DÁŽĎ
-                        // =================================================
+                        // ==================================================
+                        // STRÁNKA 1
+                        // ==================================================
 
                         Padding(
                           padding:
                               const EdgeInsets
-                                  .all(
-                            16,
-                          ),
+                                  .all(16),
                           child:
                               SingleChildScrollView(
                             child:
@@ -875,16 +875,14 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ),
 
-                        // =================================================
-                        // STRÁNKA 2 – SENZORY
-                        // =================================================
+                        // ==================================================
+                        // STRÁNKA 2
+                        // ==================================================
 
                         Padding(
                           padding:
                               const EdgeInsets
-                                  .all(
-                            16,
-                          ),
+                                  .all(16),
                           child:
                               SingleChildScrollView(
                             child:
@@ -916,8 +914,7 @@ class _MainScreenState extends State<MainScreen> {
                                 ),
 
                                 const SizedBox(
-                                  height:
-                                      12,
+                                  height: 12,
                                 ),
 
                                 BarometerWarningWidget(
@@ -926,13 +923,8 @@ class _MainScreenState extends State<MainScreen> {
                                 ),
 
                                 const SizedBox(
-                                  height:
-                                      12,
+                                  height: 12,
                                 ),
-
-                                // =========================================
-                                // NOVÉ SENZORY
-                                // =========================================
 
                                 _buildAdditionalSensorsPanel(),
                               ],
@@ -940,18 +932,26 @@ class _MainScreenState extends State<MainScreen> {
                           ),
                         ),
 
-                        // =================================================
-                        // STRÁNKA 3 – SKY ANALYZER
-                        // =================================================
+                        // ==================================================
+                        // STRÁNKA 3 – INTELIGENTNÁ ANALÝZA
+                        // ==================================================
 
                         Padding(
                           padding:
                               const EdgeInsets
-                                  .all(
-                            16,
-                          ),
+                                  .all(16),
                           child:
                               SkyAnalyzerWidget(
+                            lat:
+                                _lat,
+                            lng:
+                                _lng,
+                            heading:
+                                _heading,
+                            tiltX:
+                                _tiltX,
+                            tiltY:
+                                _tiltY,
                             barometer:
                                 _barometerState,
                             meteoData:
@@ -1020,7 +1020,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================================
-  // PANEL ĎALŠÍCH SENZOROV
+  // SENSOR PANEL
   // ==========================================================
 
   Widget _buildAdditionalSensorsPanel() {
@@ -1094,23 +1094,17 @@ class _MainScreenState extends State<MainScreen> {
 
           _sensorRow(
             'X akcelerometer',
-            _accelX.toStringAsFixed(
-              2,
-            ),
+            _accelX.toStringAsFixed(2),
           ),
 
           _sensorRow(
             'Y akcelerometer',
-            _accelY.toStringAsFixed(
-              2,
-            ),
+            _accelY.toStringAsFixed(2),
           ),
 
           _sensorRow(
             'Z akcelerometer',
-            _accelZ.toStringAsFixed(
-              2,
-            ),
+            _accelZ.toStringAsFixed(2),
           ),
 
           const Divider(
@@ -1121,23 +1115,17 @@ class _MainScreenState extends State<MainScreen> {
 
           _sensorRow(
             'Magnetometer X',
-            _magX.toStringAsFixed(
-              1,
-            ),
+            _magX.toStringAsFixed(1),
           ),
 
           _sensorRow(
             'Magnetometer Y',
-            _magY.toStringAsFixed(
-              1,
-            ),
+            _magY.toStringAsFixed(1),
           ),
 
           _sensorRow(
             'Magnetometer Z',
-            _magZ.toStringAsFixed(
-              1,
-            ),
+            _magZ.toStringAsFixed(1),
           ),
 
           const SizedBox(
@@ -1145,10 +1133,9 @@ class _MainScreenState extends State<MainScreen> {
           ),
 
           const Text(
-            'Tieto údaje už môžeme neskôr '
-            'použiť pri filtrovaní pohybu '
-            'a pri vytváraní meteorologického '
-            'modelu.',
+            'Senzory telefónu sa používajú '
+            'na určenie smeru, pohybu a '
+            'kontextu merania.',
             style:
                 TextStyle(
               color:
