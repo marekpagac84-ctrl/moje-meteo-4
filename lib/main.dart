@@ -72,8 +72,7 @@ class _MainScreenState extends State<MainScreen> {
 
   int _currentPage = 0;
 
-  final PageController _pageController =
-      PageController();
+  final PageController _pageController = PageController();
 
   // ==========================================================
   // POLOHA
@@ -82,15 +81,13 @@ class _MainScreenState extends State<MainScreen> {
   double _lat = 48.7576;
   double _lng = 17.8309;
 
-  String _locationName =
-      'Nové Mesto nad Váhom';
+  String _locationName = 'Nové Mesto nad Váhom';
 
   // ==========================================================
   // BAROMETER
   // ==========================================================
 
-  BarometerState _barometerState =
-      BarometerState(
+  BarometerState _barometerState = BarometerState(
     currentPressure: 0.0,
     pressureChangeRate: 0.0,
     isMovingVertically: false,
@@ -201,20 +198,16 @@ class _MainScreenState extends State<MainScreen> {
         LocationPermission permission =
             await Geolocator.checkPermission();
 
-        if (permission ==
-            LocationPermission.denied) {
+        if (permission == LocationPermission.denied) {
           permission =
               await Geolocator.requestPermission();
         }
 
-        if (permission ==
-                LocationPermission.whileInUse ||
-            permission ==
-                LocationPermission.always) {
+        if (permission == LocationPermission.whileInUse ||
+            permission == LocationPermission.always) {
           final Position position =
               await Geolocator.getCurrentPosition(
-            desiredAccuracy:
-                LocationAccuracy.high,
+            desiredAccuracy: LocationAccuracy.high,
           );
 
           if (!mounted) return;
@@ -222,8 +215,7 @@ class _MainScreenState extends State<MainScreen> {
           setState(() {
             _lat = position.latitude;
             _lng = position.longitude;
-            _locationName =
-                'Moja GPS poloha';
+            _locationName = 'Moja GPS poloha';
           });
         }
       }
@@ -255,15 +247,13 @@ class _MainScreenState extends State<MainScreen> {
       _userAccelSubscription =
           userAccelerometerEventStream().listen(
         (event) {
-          final double magnitude =
-              math.sqrt(
+          final double magnitude = math.sqrt(
             event.x * event.x +
                 event.y * event.y +
                 event.z * event.z,
           );
 
-          _accelerationMagnitude =
-              magnitude;
+          _accelerationMagnitude = magnitude;
 
           _updateMovementState();
         },
@@ -322,8 +312,7 @@ class _MainScreenState extends State<MainScreen> {
           _gyroY = event.y;
           _gyroZ = event.z;
 
-          _rotationMagnitude =
-              math.sqrt(
+          _rotationMagnitude = math.sqrt(
             event.x * event.x +
                 event.y * event.y +
                 event.z * event.z,
@@ -381,31 +370,24 @@ class _MainScreenState extends State<MainScreen> {
       _pressureSubscription =
           barometerEventStream().listen(
         (event) {
-          final double newPressure =
-              event.pressure;
+          final double newPressure = event.pressure;
 
-          if (newPressure <= 0 ||
-              !mounted) {
+          if (newPressure <= 0 || !mounted) {
             return;
           }
 
-          final List<PressurePoint>
-              history =
+          final List<PressurePoint> history =
               List<PressurePoint>.from(
-            _barometerState
-                .pressureHistory,
+            _barometerState.pressureHistory,
           );
 
           final double oldPressure =
-              _barometerState
-                  .currentPressure;
+              _barometerState.currentPressure;
 
           double rate = 0.0;
 
           if (oldPressure > 0) {
-            rate =
-                newPressure -
-                    oldPressure;
+            rate = newPressure - oldPressure;
           }
 
           history.add(
@@ -419,28 +401,22 @@ class _MainScreenState extends State<MainScreen> {
             history.removeAt(0);
           }
 
-          double base =
-              _barometerState.basePressure;
+          double base = _barometerState.basePressure;
 
           if (base <= 0) {
             base = newPressure;
           }
 
           final double altitude =
-              (base - newPressure) *
-                  8.43;
+              (base - newPressure) * 8.43;
 
           setState(() {
             _barometerState =
                 _barometerState.copyWith(
-              currentPressure:
-                  newPressure,
-              pressureChangeRate:
-                  rate,
-              estimatedAltitude:
-                  altitude,
-              pressureHistory:
-                  history,
+              currentPressure: newPressure,
+              pressureChangeRate: rate,
+              estimatedAltitude: altitude,
+              pressureHistory: history,
             );
           });
         },
@@ -471,17 +447,13 @@ class _MainScreenState extends State<MainScreen> {
         _rotationMagnitude > 1.2;
 
     final bool moving =
-        accelerationMovement ||
-            rotationMovement;
+        accelerationMovement || rotationMovement;
 
-    if (moving !=
-        _barometerState
-            .isMovingVertically) {
+    if (moving != _barometerState.isMovingVertically) {
       setState(() {
         _barometerState =
             _barometerState.copyWith(
-          isMovingVertically:
-              moving,
+          isMovingVertically: moving,
         );
       });
     }
@@ -492,8 +464,7 @@ class _MainScreenState extends State<MainScreen> {
   // ==========================================================
 
   void _calculateTilt() {
-    final double denominator =
-        math.sqrt(
+    final double denominator = math.sqrt(
       _accelY * _accelY +
           _accelZ * _accelZ,
     );
@@ -524,15 +495,13 @@ class _MainScreenState extends State<MainScreen> {
   // ==========================================================
 
   void _calculateHeading() {
-    final double gravityMagnitude =
-        math.sqrt(
+    final double gravityMagnitude = math.sqrt(
       _accelX * _accelX +
           _accelY * _accelY +
           _accelZ * _accelZ,
     );
 
-    final double magneticMagnitude =
-        math.sqrt(
+    final double magneticMagnitude = math.sqrt(
       _magX * _magX +
           _magY * _magY +
           _magZ * _magZ,
@@ -556,7 +525,7 @@ class _MainScreenState extends State<MainScreen> {
     final double my = _magY;
     final double mz = _magZ;
 
-    // Východ
+    // VÝCHOD
     double eastX =
         my * az - mz * ay;
 
@@ -566,8 +535,7 @@ class _MainScreenState extends State<MainScreen> {
     double eastZ =
         mx * ay - my * ax;
 
-    final double eastMagnitude =
-        math.sqrt(
+    final double eastMagnitude = math.sqrt(
       eastX * eastX +
           eastY * eastY +
           eastZ * eastZ,
@@ -581,7 +549,7 @@ class _MainScreenState extends State<MainScreen> {
     eastY /= eastMagnitude;
     eastZ /= eastMagnitude;
 
-    // Sever
+    // SEVER
     double northX =
         ay * eastZ -
             az * eastY;
@@ -594,8 +562,7 @@ class _MainScreenState extends State<MainScreen> {
         ax * eastY -
             ay * eastX;
 
-    final double northMagnitude =
-        math.sqrt(
+    final double northMagnitude = math.sqrt(
       northX * northX +
           northY * northY +
           northZ * northZ,
@@ -630,6 +597,11 @@ class _MainScreenState extends State<MainScreen> {
 
   // ==========================================================
   // METEO API
+  //
+  // TOTO JE DÔLEŽITÁ OPRAVA.
+  //
+  // MeteoApiData teraz očakáva CURRENT + HOURLY + DAILY.
+  // Preto musíme Open-Meteo požiadať presne o tieto údaje.
   // ==========================================================
 
   Future<void> _fetchWeatherData() async {
@@ -644,47 +616,115 @@ class _MainScreenState extends State<MainScreen> {
         'https://api.open-meteo.com/v1/forecast'
         '?latitude=$_lat'
         '&longitude=$_lng'
-        '&current_weather=true'
+        '&current='
+        'temperature_2m,'
+        'wind_speed_10m,'
+        'wind_direction_10m,'
+        'surface_pressure,'
+        'weather_code'
         '&hourly='
+        'temperature_2m,'
         'precipitation_probability,'
         'precipitation,'
         'wind_direction_10m,'
+        'wind_speed_10m,'
+        'relative_humidity_2m,'
         'surface_pressure'
-        '&forecast_hours=12',
+        '&daily='
+        'temperature_2m_max,'
+        'temperature_2m_min,'
+        'weather_code,'
+        'sunrise,'
+        'sunset'
+        '&forecast_days=7'
+        '&timezone=auto',
       );
 
-      final response =
-          await http.get(url);
+      debugPrint('--------------------------------');
+      debugPrint('METEO API REQUEST');
+      debugPrint(url.toString());
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic>
-            data =
-            json.decode(
-                  response.body,
-                )
-                as Map<String, dynamic>;
+      final response = await http.get(
+        url,
+        headers: {
+          'Accept': 'application/json',
+        },
+      );
 
-        final MeteoApiData meteo =
-            MeteoApiData.fromJson(
-          data,
+      debugPrint(
+        'METEO API STATUS: ${response.statusCode}',
+      );
+
+      if (response.statusCode != 200) {
+        debugPrint(
+          'METEO API ERROR BODY: ${response.body}',
         );
 
         if (!mounted) return;
 
         setState(() {
-          _meteoData = meteo;
           _isLoadingMeteo = false;
         });
-      } else {
-        if (!mounted) return;
 
-        setState(() {
-          _isLoadingMeteo = false;
-        });
+        return;
       }
-    } catch (e) {
+
+      final Map<String, dynamic> data =
+          json.decode(response.body)
+              as Map<String, dynamic>;
+
       debugPrint(
-        'Meteo API error: $e',
+        'METEO API DATA RECEIVED',
+      );
+
+      final MeteoApiData meteo =
+          MeteoApiData.fromJson(data);
+
+      if (!mounted) return;
+
+      setState(() {
+        _meteoData = meteo;
+        _isLoadingMeteo = false;
+      });
+
+      debugPrint(
+        'CURRENT TEMP: '
+        '${meteo.currentTemperature}',
+      );
+
+      debugPrint(
+        'CURRENT WIND: '
+        '${meteo.currentWindSpeed}',
+      );
+
+      debugPrint(
+        'CURRENT PRESSURE: '
+        '${meteo.currentPressure}',
+      );
+
+      debugPrint(
+        'WEATHER CODE: '
+        '${meteo.currentWeatherCode}',
+      );
+
+      debugPrint(
+        'HOURLY ITEMS: '
+        '${meteo.hourlyTimes?.length ?? 0}',
+      );
+
+      debugPrint(
+        'DAILY ITEMS: '
+        '${meteo.dailyTimes?.length ?? 0}',
+      );
+
+      debugPrint('--------------------------------');
+    } catch (e, stackTrace) {
+      debugPrint(
+        'METEO API EXCEPTION: $e',
+      );
+
+      debugPrint(
+        stackTrace.toString(),
       );
 
       if (!mounted) return;
@@ -702,15 +742,11 @@ class _MainScreenState extends State<MainScreen> {
   void _simulatePressureDrop() {
     setState(() {
       final double newPressure =
-          _barometerState
-                  .currentPressure -
-              3.5;
+          _barometerState.currentPressure - 3.5;
 
-      final List<PressurePoint>
-          history =
+      final List<PressurePoint> history =
           List<PressurePoint>.from(
-        _barometerState
-            .pressureHistory,
+        _barometerState.pressureHistory,
       );
 
       history.add(
@@ -722,11 +758,9 @@ class _MainScreenState extends State<MainScreen> {
 
       _barometerState =
           _barometerState.copyWith(
-        currentPressure:
-            newPressure,
+        currentPressure: newPressure,
         pressureChangeRate: -3.5,
-        pressureHistory:
-            history,
+        pressureHistory: history,
       );
     });
   }
@@ -740,8 +774,7 @@ class _MainScreenState extends State<MainScreen> {
       _barometerState =
           _barometerState.copyWith(
         isMovingVertically:
-            !_barometerState
-                .isMovingVertically,
+            !_barometerState.isMovingVertically,
       );
     });
   }
@@ -754,8 +787,7 @@ class _MainScreenState extends State<MainScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor:
-          Colors.transparent,
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return StatefulBuilder(
           builder: (
@@ -764,31 +796,17 @@ class _MainScreenState extends State<MainScreen> {
           ) {
             return Container(
               height:
-                  MediaQuery.of(context)
-                          .size
-                          .height *
-                      0.88,
-              decoration:
-                  const BoxDecoration(
-                color:
-                    Color(0xFF1E293B),
-                borderRadius:
-                    BorderRadius.vertical(
-                  top: Radius.circular(
-                    22,
-                  ),
+                  MediaQuery.of(context).size.height * 0.88,
+              decoration: const BoxDecoration(
+                color: Color(0xFF1E293B),
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(22),
                 ),
               ),
               child: Column(
                 children: [
-                  // ------------------------------------------------
-                  // HLAVIČKA MAPY
-                  // ------------------------------------------------
-
                   Padding(
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
                     ),
@@ -796,28 +814,19 @@ class _MainScreenState extends State<MainScreen> {
                       children: [
                         const Icon(
                           Icons.radar_rounded,
-                          color:
-                              Colors.blueAccent,
+                          color: Colors.blueAccent,
                         ),
-                        const SizedBox(
-                          width: 10,
-                        ),
+                        const SizedBox(width: 10),
                         const Expanded(
                           child: Text(
                             'Živá radarová mapa',
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.white,
+                            style: TextStyle(
+                              color: Colors.white,
                               fontSize: 16,
-                              fontWeight:
-                                  FontWeight
-                                      .bold,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
-
-                        // WINDY / ZÁKLADNÁ
                         TextButton.icon(
                           onPressed: () {
                             setModalState(() {
@@ -827,63 +836,42 @@ class _MainScreenState extends State<MainScreen> {
                           },
                           icon: Icon(
                             _useWindyView
-                                ? Icons
-                                    .public_rounded
+                                ? Icons.public_rounded
                                 : Icons
                                     .thunderstorm_rounded,
-                            color:
-                                Colors.blueAccent,
+                            color: Colors.blueAccent,
                             size: 18,
                           ),
                           label: Text(
                             _useWindyView
                                 ? 'Windy'
                                 : 'Radar',
-                            style:
-                                const TextStyle(
-                              color:
-                                  Colors.blueAccent,
+                            style: const TextStyle(
+                              color: Colors.blueAccent,
                               fontSize: 13,
                             ),
                           ),
                         ),
-
                         IconButton(
-                          icon:
-                              const Icon(
-                            Icons
-                                .close_rounded,
-                            color:
-                                Colors.white70,
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white70,
                           ),
                           onPressed: () =>
-                              Navigator.pop(
-                            context,
-                          ),
+                              Navigator.pop(context),
                         ),
                       ],
                     ),
                   ),
-
                   const Divider(
                     height: 1,
-                    color:
-                        Colors.white12,
+                    color: Colors.white12,
                   ),
-
-                  // ------------------------------------------------
-                  // MAPA
-                  // ------------------------------------------------
-
                   Expanded(
                     child: ClipRRect(
                       borderRadius:
-                          const BorderRadius
-                              .vertical(
-                        bottom:
-                            Radius.circular(
-                          22,
-                        ),
+                          const BorderRadius.vertical(
+                        bottom: Radius.circular(22),
                       ),
                       child: _useWindyView
                           ? WindyMapContainer(
@@ -896,8 +884,7 @@ class _MainScreenState extends State<MainScreen> {
                                   lng: _lng,
                                 )
                               : MapContainer(
-                                  center:
-                                      LatLng(
+                                  center: LatLng(
                                     _lat,
                                     _lng,
                                   ),
@@ -918,19 +905,13 @@ class _MainScreenState extends State<MainScreen> {
   // ==========================================================
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration:
-            const BoxDecoration(
-          gradient:
-              LinearGradient(
-            begin:
-                Alignment.topCenter,
-            end:
-                Alignment.bottomCenter,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [
               Color(0xFF0B172A),
               Color(0xFF08111F),
@@ -947,15 +928,11 @@ class _MainScreenState extends State<MainScreen> {
               HeaderBar(
                 currentLocationName:
                     _locationName,
-                onSelectPreset:
-                    (preset) {
+                onSelectPreset: (preset) {
                   setState(() {
-                    _lat =
-                        preset.lat;
-                    _lng =
-                        preset.lng;
-                    _locationName =
-                        preset.name;
+                    _lat = preset.lat;
+                    _lng = preset.lng;
+                    _locationName = preset.name;
                   });
 
                   _fetchWeatherData();
@@ -966,8 +943,7 @@ class _MainScreenState extends State<MainScreen> {
                     _showRadar,
                 onToggleRadar: () {
                   setState(() {
-                    _showRadar =
-                        !_showRadar;
+                    _showRadar = !_showRadar;
                   });
                 },
               ),
@@ -980,15 +956,11 @@ class _MainScreenState extends State<MainScreen> {
                 child: Column(
                   children: [
                     Expanded(
-                      child:
-                          PageView(
-                        controller:
-                            _pageController,
-                        onPageChanged:
-                            (index) {
+                      child: PageView(
+                        controller: _pageController,
+                        onPageChanged: (index) {
                           setState(() {
-                            _currentPage =
-                                index;
+                            _currentPage = index;
                           });
                         },
                         children: [
@@ -999,8 +971,7 @@ class _MainScreenState extends State<MainScreen> {
 
                           Padding(
                             padding:
-                                const EdgeInsets
-                                    .fromLTRB(
+                                const EdgeInsets.fromLTRB(
                               16,
                               12,
                               16,
@@ -1031,8 +1002,7 @@ class _MainScreenState extends State<MainScreen> {
 
                           Padding(
                             padding:
-                                const EdgeInsets
-                                    .fromLTRB(
+                                const EdgeInsets.fromLTRB(
                               16,
                               12,
                               16,
@@ -1042,8 +1012,7 @@ class _MainScreenState extends State<MainScreen> {
                                 SingleChildScrollView(
                               physics:
                                   const BouncingScrollPhysics(),
-                              child:
-                                  Column(
+                              child: Column(
                                 children: [
                                   SensorPanel(
                                     barometer:
@@ -1054,21 +1023,19 @@ class _MainScreenState extends State<MainScreen> {
                                         _simulateMotionToggle,
                                     onResetSensors:
                                         () {
-                                      setState(
-                                        () {
-                                          _barometerState =
+                                      setState(() {
+                                        _barometerState =
+                                            _barometerState
+                                                .copyWith(
+                                          basePressure:
                                               _barometerState
-                                                  .copyWith(
-                                            basePressure:
-                                                _barometerState
-                                                    .currentPressure,
-                                            pressureChangeRate:
-                                                0.0,
-                                            estimatedAltitude:
-                                                0.0,
-                                          );
-                                        },
-                                      );
+                                                  .currentPressure,
+                                          pressureChangeRate:
+                                              0.0,
+                                          estimatedAltitude:
+                                              0.0,
+                                        );
+                                      });
                                     },
                                   ),
 
@@ -1098,8 +1065,7 @@ class _MainScreenState extends State<MainScreen> {
 
                           Padding(
                             padding:
-                                const EdgeInsets
-                                    .fromLTRB(
+                                const EdgeInsets.fromLTRB(
                               16,
                               12,
                               16,
@@ -1109,12 +1075,9 @@ class _MainScreenState extends State<MainScreen> {
                                 SkyAnalyzerWidget(
                               lat: _lat,
                               lng: _lng,
-                              heading:
-                                  _heading,
-                              tiltX:
-                                  _tiltX,
-                              tiltY:
-                                  _tiltY,
+                              heading: _heading,
+                              tiltX: _tiltX,
+                              tiltY: _tiltY,
                               barometer:
                                   _barometerState,
                               meteoData:
@@ -1126,7 +1089,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
 
                     // =================================================
-                    // INDIKÁTOR STRÁNOK
+                    // INDIKÁTOR
                     // =================================================
 
                     _buildPageIndicator(),
@@ -1146,54 +1109,42 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildPageIndicator() {
     return Padding(
-      padding:
-          const EdgeInsets.only(
+      padding: const EdgeInsets.only(
         top: 8,
         bottom: 10,
       ),
       child: Row(
         mainAxisAlignment:
             MainAxisAlignment.center,
-        children:
-            List.generate(
+        children: List.generate(
           3,
           (index) {
             final bool active =
-                _currentPage ==
-                    index;
+                _currentPage == index;
 
             return AnimatedContainer(
               duration:
                   const Duration(
                 milliseconds: 250,
               ),
-              curve:
-                  Curves.easeOut,
+              curve: Curves.easeOut,
               margin:
-                  const EdgeInsets
-                      .symmetric(
+                  const EdgeInsets.symmetric(
                 horizontal: 4,
               ),
-              width:
-                  active ? 24 : 7,
+              width: active ? 24 : 7,
               height: 7,
-              decoration:
-                  BoxDecoration(
+              decoration: BoxDecoration(
                 color: active
                     ? Colors.blueAccent
                     : Colors.white24,
                 borderRadius:
-                    BorderRadius.circular(
-                  10,
-                ),
+                    BorderRadius.circular(10),
                 boxShadow: active
                     ? [
                         BoxShadow(
-                          color: Colors
-                              .blueAccent
-                              .withOpacity(
-                            0.35,
-                          ),
+                          color: Colors.blueAccent
+                              .withOpacity(0.35),
                           blurRadius: 8,
                         ),
                       ]
@@ -1213,12 +1164,9 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildAdditionalSensorsPanel() {
     return Container(
       width: double.infinity,
-      padding:
-          const EdgeInsets.all(16),
-      decoration:
-          BoxDecoration(
-        color:
-            const Color(0xFF1E293B),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
         borderRadius:
             BorderRadius.circular(16),
         border: Border.all(
@@ -1234,14 +1182,11 @@ class _MainScreenState extends State<MainScreen> {
             style: TextStyle(
               color: Colors.white,
               fontSize: 16,
-              fontWeight:
-                  FontWeight.bold,
+              fontWeight: FontWeight.bold,
             ),
           ),
 
-          const SizedBox(
-            height: 14,
-          ),
+          const SizedBox(height: 14),
 
           _sensorRow(
             '🔄 Gyroskop',
@@ -1308,9 +1253,7 @@ class _MainScreenState extends State<MainScreen> {
             _magZ.toStringAsFixed(1),
           ),
 
-          const SizedBox(
-            height: 8,
-          ),
+          const SizedBox(height: 8),
 
           const Text(
             'Kompas používa magnetometer spolu '
@@ -1347,25 +1290,19 @@ class _MainScreenState extends State<MainScreen> {
           Expanded(
             child: Text(
               name,
-              style:
-                  const TextStyle(
-                color:
-                    Colors.white70,
+              style: const TextStyle(
+                color: Colors.white70,
                 fontSize: 13,
               ),
             ),
           ),
-          const SizedBox(
-            width: 12,
-          ),
+          const SizedBox(width: 12),
           Text(
             value,
-            style:
-                const TextStyle(
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 13,
-              fontWeight:
-                  FontWeight.bold,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],
