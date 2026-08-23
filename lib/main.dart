@@ -9,6 +9,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'models/meteo_data.dart';
+
 import 'components/header_bar.dart';
 import 'components/sensor_panel.dart';
 import 'components/barometer_warning_widget.dart';
@@ -23,6 +24,10 @@ void main() {
   runApp(const MyApp());
 }
 
+// ============================================================
+// APP
+// ============================================================
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -32,12 +37,20 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Moje Meteo',
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0F172A),
+        scaffoldBackgroundColor: const Color(0xFF08111F),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2563EB),
+          brightness: Brightness.dark,
+        ),
       ),
       home: const MainScreen(),
     );
   }
 }
+
+// ============================================================
+// MAIN SCREEN
+// ============================================================
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -48,7 +61,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   // ==========================================================
-  // HLAVNÉ NASTAVENIA
+  // NASTAVENIA
   // ==========================================================
 
   bool _showRadar = true;
@@ -59,18 +72,25 @@ class _MainScreenState extends State<MainScreen> {
 
   int _currentPage = 0;
 
-  final PageController _pageController = PageController();
+  final PageController _pageController =
+      PageController();
+
+  // ==========================================================
+  // POLOHA
+  // ==========================================================
 
   double _lat = 48.7576;
   double _lng = 17.8309;
 
-  String _locationName = 'Nové Mesto nad Váhom';
+  String _locationName =
+      'Nové Mesto nad Váhom';
 
   // ==========================================================
   // BAROMETER
   // ==========================================================
 
-  BarometerState _barometerState = BarometerState(
+  BarometerState _barometerState =
+      BarometerState(
     currentPressure: 0.0,
     pressureChangeRate: 0.0,
     isMovingVertically: false,
@@ -114,14 +134,14 @@ class _MainScreenState extends State<MainScreen> {
   double _heading = 0.0;
 
   // ==========================================================
-  // ORIENTÁCIA
+  // NÁKLON
   // ==========================================================
 
   double _tiltX = 0.0;
   double _tiltY = 0.0;
 
   // ==========================================================
-  // SENZORY
+  // STREAMY SENZOROV
   // ==========================================================
 
   StreamSubscription<UserAccelerometerEvent>?
@@ -181,16 +201,20 @@ class _MainScreenState extends State<MainScreen> {
         LocationPermission permission =
             await Geolocator.checkPermission();
 
-        if (permission == LocationPermission.denied) {
+        if (permission ==
+            LocationPermission.denied) {
           permission =
               await Geolocator.requestPermission();
         }
 
-        if (permission == LocationPermission.whileInUse ||
-            permission == LocationPermission.always) {
+        if (permission ==
+                LocationPermission.whileInUse ||
+            permission ==
+                LocationPermission.always) {
           final Position position =
               await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.high,
+            desiredAccuracy:
+                LocationAccuracy.high,
           );
 
           if (!mounted) return;
@@ -198,7 +222,8 @@ class _MainScreenState extends State<MainScreen> {
           setState(() {
             _lat = position.latitude;
             _lng = position.longitude;
-            _locationName = 'Moja GPS poloha';
+            _locationName =
+                'Moja GPS poloha';
           });
         }
       }
@@ -206,11 +231,11 @@ class _MainScreenState extends State<MainScreen> {
       debugPrint('GPS error: $e');
     }
 
-    _fetchWeatherData();
+    await _fetchWeatherData();
   }
 
   // ==========================================================
-  // VŠETKY SENZORY
+  // SENZORY
   // ==========================================================
 
   void _initSensors() {
@@ -230,13 +255,15 @@ class _MainScreenState extends State<MainScreen> {
       _userAccelSubscription =
           userAccelerometerEventStream().listen(
         (event) {
-          final double magnitude = math.sqrt(
+          final double magnitude =
+              math.sqrt(
             event.x * event.x +
                 event.y * event.y +
                 event.z * event.z,
           );
 
-          _accelerationMagnitude = magnitude;
+          _accelerationMagnitude =
+              magnitude;
 
           _updateMovementState();
         },
@@ -267,10 +294,6 @@ class _MainScreenState extends State<MainScreen> {
           _accelZ = event.z;
 
           _calculateTilt();
-
-          // Dôležité:
-          // heading sa musí prepočítať aj po zmene
-          // náklonu telefónu.
           _calculateHeading();
         },
         onError: (e) {
@@ -299,7 +322,8 @@ class _MainScreenState extends State<MainScreen> {
           _gyroY = event.y;
           _gyroZ = event.z;
 
-          _rotationMagnitude = math.sqrt(
+          _rotationMagnitude =
+              math.sqrt(
             event.x * event.x +
                 event.y * event.y +
                 event.z * event.z,
@@ -333,8 +357,6 @@ class _MainScreenState extends State<MainScreen> {
           _magY = event.y;
           _magZ = event.z;
 
-          // Heading sa počíta spolu s akcelerometrom,
-          // aby sme vedeli kompenzovať náklon.
           _calculateHeading();
         },
         onError: (e) {
@@ -359,24 +381,31 @@ class _MainScreenState extends State<MainScreen> {
       _pressureSubscription =
           barometerEventStream().listen(
         (event) {
-          final double newPressure = event.pressure;
+          final double newPressure =
+              event.pressure;
 
-          if (newPressure <= 0 || !mounted) {
+          if (newPressure <= 0 ||
+              !mounted) {
             return;
           }
 
-          final List<PressurePoint> history =
+          final List<PressurePoint>
+              history =
               List<PressurePoint>.from(
-            _barometerState.pressureHistory,
+            _barometerState
+                .pressureHistory,
           );
 
           final double oldPressure =
-              _barometerState.currentPressure;
+              _barometerState
+                  .currentPressure;
 
           double rate = 0.0;
 
           if (oldPressure > 0) {
-            rate = newPressure - oldPressure;
+            rate =
+                newPressure -
+                    oldPressure;
           }
 
           history.add(
@@ -398,15 +427,20 @@ class _MainScreenState extends State<MainScreen> {
           }
 
           final double altitude =
-              (base - newPressure) * 8.43;
+              (base - newPressure) *
+                  8.43;
 
           setState(() {
             _barometerState =
                 _barometerState.copyWith(
-              currentPressure: newPressure,
-              pressureChangeRate: rate,
-              estimatedAltitude: altitude,
-              pressureHistory: history,
+              currentPressure:
+                  newPressure,
+              pressureChangeRate:
+                  rate,
+              estimatedAltitude:
+                  altitude,
+              pressureHistory:
+                  history,
             );
           });
         },
@@ -441,22 +475,25 @@ class _MainScreenState extends State<MainScreen> {
             rotationMovement;
 
     if (moving !=
-        _barometerState.isMovingVertically) {
+        _barometerState
+            .isMovingVertically) {
       setState(() {
         _barometerState =
             _barometerState.copyWith(
-          isMovingVertically: moving,
+          isMovingVertically:
+              moving,
         );
       });
     }
   }
 
   // ==========================================================
-  // NÁKLON TELEFÓNU
+  // NÁKLON
   // ==========================================================
 
   void _calculateTilt() {
-    final double denominator = math.sqrt(
+    final double denominator =
+        math.sqrt(
       _accelY * _accelY +
           _accelZ * _accelZ,
     );
@@ -465,7 +502,7 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    final double tiltX =
+    _tiltX =
         math.atan2(
           _accelX,
           denominator,
@@ -473,48 +510,29 @@ class _MainScreenState extends State<MainScreen> {
         180 /
         math.pi;
 
-    final double tiltY =
+    _tiltY =
         math.atan2(
           _accelY,
           _accelZ,
         ) *
         180 /
         math.pi;
-
-    _tiltX = tiltX;
-    _tiltY = tiltY;
   }
 
   // ==========================================================
-  // TILT-COMPENSATED KOMPAS
-  //
-  // Toto je podstatná oprava.
-  //
-  // Magnetometer sám o sebe nevie, kam smeruje horná
-  // hrana telefónu, keď je telefón naklonený.
-  //
-  // Ak telefón držíš napríklad približne kolmo,
-  // magnetické pole sa premietne do všetkých troch osí.
-  //
-  // Preto vytvoríme orientačnú maticu podobne ako
-  // Android SensorManager:
-  //
-  // X = východ
-  // Y = sever
-  // Z = hore
-  //
-  // Z nej získame azimut hornej hrany telefónu.
+  // KOMPAS
   // ==========================================================
 
   void _calculateHeading() {
-    // Ak nemáme použiteľné dáta, nič nerobíme.
-    final double gravityMagnitude = math.sqrt(
+    final double gravityMagnitude =
+        math.sqrt(
       _accelX * _accelX +
           _accelY * _accelY +
           _accelZ * _accelZ,
     );
 
-    final double magneticMagnitude = math.sqrt(
+    final double magneticMagnitude =
+        math.sqrt(
       _magX * _magX +
           _magY * _magY +
           _magZ * _magZ,
@@ -525,10 +543,6 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    // --------------------------------------------------------
-    // NORMALIZOVANÝ GRAVITAČNÝ VEKTOR
-    // --------------------------------------------------------
-
     final double ax =
         _accelX / gravityMagnitude;
 
@@ -538,20 +552,11 @@ class _MainScreenState extends State<MainScreen> {
     final double az =
         _accelZ / gravityMagnitude;
 
-    // --------------------------------------------------------
-    // MAGNETICKÝ VEKTOR
-    // --------------------------------------------------------
-
     final double mx = _magX;
     final double my = _magY;
     final double mz = _magZ;
 
-    // --------------------------------------------------------
-    // VÝCHOD = M x GRAVITAČNÝ VEKTOR
-    //
-    // Toto odstráni vplyv náklonu telefónu.
-    // --------------------------------------------------------
-
+    // Východ
     double eastX =
         my * az - mz * ay;
 
@@ -561,7 +566,8 @@ class _MainScreenState extends State<MainScreen> {
     double eastZ =
         mx * ay - my * ax;
 
-    final double eastMagnitude = math.sqrt(
+    final double eastMagnitude =
+        math.sqrt(
       eastX * eastX +
           eastY * eastY +
           eastZ * eastZ,
@@ -575,20 +581,21 @@ class _MainScreenState extends State<MainScreen> {
     eastY /= eastMagnitude;
     eastZ /= eastMagnitude;
 
-    // --------------------------------------------------------
-    // SEVER = GRAVITAČNÝ VEKTOR × VÝCHOD
-    // --------------------------------------------------------
-
+    // Sever
     double northX =
-        ay * eastZ - az * eastY;
+        ay * eastZ -
+            az * eastY;
 
     double northY =
-        az * eastX - ax * eastZ;
+        az * eastX -
+            ax * eastZ;
 
     double northZ =
-        az * eastY - ay * eastX;
+        ax * eastY -
+            ay * eastX;
 
-    final double northMagnitude = math.sqrt(
+    final double northMagnitude =
+        math.sqrt(
       northX * northX +
           northY * northY +
           northZ * northZ,
@@ -602,19 +609,6 @@ class _MainScreenState extends State<MainScreen> {
     northY /= northMagnitude;
     northZ /= northMagnitude;
 
-    // --------------------------------------------------------
-    // AZIMUT HORNEJ HRANY TELEFÓNU
-    //
-    // Horizontálna orientácia hornej hrany telefónu.
-    //
-    // atan2(EAST, NORTH):
-    //
-    // 0   = sever
-    // 90  = východ
-    // 180 = juh
-    // 270 = západ
-    // --------------------------------------------------------
-
     double heading =
         math.atan2(
           eastY,
@@ -622,15 +616,6 @@ class _MainScreenState extends State<MainScreen> {
         ) *
         180 /
         math.pi;
-
-    // --------------------------------------------------------
-    // Alternatívne použitie horizontálnej projekcie
-    // severného vektora.
-    //
-    // Pri niektorých orientáciách zariadenia je potrebné
-    // použiť správnu projekciu podľa toho, ktorá os
-    // predstavuje hornú hranu telefónu.
-    // --------------------------------------------------------
 
     if (heading < 0) {
       heading += 360;
@@ -668,15 +653,21 @@ class _MainScreenState extends State<MainScreen> {
         '&forecast_hours=12',
       );
 
-      final response = await http.get(url);
+      final response =
+          await http.get(url);
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data =
-            json.decode(response.body)
+        final Map<String, dynamic>
+            data =
+            json.decode(
+                  response.body,
+                )
                 as Map<String, dynamic>;
 
         final MeteoApiData meteo =
-            MeteoApiData.fromJson(data);
+            MeteoApiData.fromJson(
+          data,
+        );
 
         if (!mounted) return;
 
@@ -705,17 +696,21 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================================
-  // SIMULÁCIA POKLESU TLAKU
+  // SIMULÁCIA TLAKU
   // ==========================================================
 
   void _simulatePressureDrop() {
     setState(() {
       final double newPressure =
-          _barometerState.currentPressure - 3.5;
+          _barometerState
+                  .currentPressure -
+              3.5;
 
-      final List<PressurePoint> history =
+      final List<PressurePoint>
+          history =
           List<PressurePoint>.from(
-        _barometerState.pressureHistory,
+        _barometerState
+            .pressureHistory,
       );
 
       history.add(
@@ -727,9 +722,11 @@ class _MainScreenState extends State<MainScreen> {
 
       _barometerState =
           _barometerState.copyWith(
-        currentPressure: newPressure,
+        currentPressure:
+            newPressure,
         pressureChangeRate: -3.5,
-        pressureHistory: history,
+        pressureHistory:
+            history,
       );
     });
   }
@@ -743,20 +740,22 @@ class _MainScreenState extends State<MainScreen> {
       _barometerState =
           _barometerState.copyWith(
         isMovingVertically:
-            !_barometerState.isMovingVertically,
+            !_barometerState
+                .isMovingVertically,
       );
     });
   }
 
   // ==========================================================
-  // MAPA
+  // VEĽKÁ RADAROVÁ MAPA
   // ==========================================================
 
   void _openFullMap() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor:
+          Colors.transparent,
       builder: (context) {
         return StatefulBuilder(
           builder: (
@@ -765,90 +764,126 @@ class _MainScreenState extends State<MainScreen> {
           ) {
             return Container(
               height:
-                  MediaQuery.of(context).size.height *
+                  MediaQuery.of(context)
+                          .size
+                          .height *
                       0.88,
               decoration:
                   const BoxDecoration(
-                color: Color(0xFF1E293B),
+                color:
+                    Color(0xFF1E293B),
                 borderRadius:
                     BorderRadius.vertical(
-                  top: Radius.circular(20),
+                  top: Radius.circular(
+                    22,
+                  ),
                 ),
               ),
               child: Column(
                 children: [
+                  // ------------------------------------------------
+                  // HLAVIČKA MAPY
+                  // ------------------------------------------------
+
                   Padding(
                     padding:
-                        const EdgeInsets.symmetric(
+                        const EdgeInsets
+                            .symmetric(
                       horizontal: 16,
                       vertical: 8,
                     ),
                     child: Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Živá radarová mapa',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight:
-                                FontWeight.bold,
+                        const Icon(
+                          Icons.radar_rounded,
+                          color:
+                              Colors.blueAccent,
+                        ),
+                        const SizedBox(
+                          width: 10,
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'Živá radarová mapa',
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.white,
+                              fontSize: 16,
+                              fontWeight:
+                                  FontWeight
+                                      .bold,
+                            ),
                           ),
                         ),
-                        Row(
-                          children: [
-                            TextButton.icon(
-                              onPressed: () {
-                                setModalState(() {
-                                  _useWindyView =
-                                      !_useWindyView;
-                                });
-                              },
-                              icon: Icon(
-                                _useWindyView
-                                    ? Icons.map
-                                    : Icons.thunderstorm,
-                                color:
-                                    Colors.blueAccent,
-                                size: 18,
-                              ),
-                              label: Text(
-                                _useWindyView
-                                    ? 'Základná'
-                                    : 'Windy',
-                                style: const TextStyle(
-                                  color:
-                                      Colors.blueAccent,
-                                  fontSize: 13,
-                                ),
-                              ),
+
+                        // WINDY / ZÁKLADNÁ
+                        TextButton.icon(
+                          onPressed: () {
+                            setModalState(() {
+                              _useWindyView =
+                                  !_useWindyView;
+                            });
+                          },
+                          icon: Icon(
+                            _useWindyView
+                                ? Icons
+                                    .public_rounded
+                                : Icons
+                                    .thunderstorm_rounded,
+                            color:
+                                Colors.blueAccent,
+                            size: 18,
+                          ),
+                          label: Text(
+                            _useWindyView
+                                ? 'Windy'
+                                : 'Radar',
+                            style:
+                                const TextStyle(
+                              color:
+                                  Colors.blueAccent,
+                              fontSize: 13,
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.close_rounded,
-                                color:
-                                    Colors.white70,
-                              ),
-                              onPressed: () =>
-                                  Navigator.pop(
-                                context,
-                              ),
-                            ),
-                          ],
+                          ),
+                        ),
+
+                        IconButton(
+                          icon:
+                              const Icon(
+                            Icons
+                                .close_rounded,
+                            color:
+                                Colors.white70,
+                          ),
+                          onPressed: () =>
+                              Navigator.pop(
+                            context,
+                          ),
                         ),
                       ],
                     ),
                   ),
+
                   const Divider(
                     height: 1,
-                    color: Colors.white12,
+                    color:
+                        Colors.white12,
                   ),
+
+                  // ------------------------------------------------
+                  // MAPA
+                  // ------------------------------------------------
+
                   Expanded(
                     child: ClipRRect(
                       borderRadius:
-                          const BorderRadius.vertical(
-                        bottom: Radius.circular(20),
+                          const BorderRadius
+                              .vertical(
+                        bottom:
+                            Radius.circular(
+                          22,
+                        ),
                       ),
                       child: _useWindyView
                           ? WindyMapContainer(
@@ -861,7 +896,8 @@ class _MainScreenState extends State<MainScreen> {
                                   lng: _lng,
                                 )
                               : MapContainer(
-                                  center: LatLng(
+                                  center:
+                                      LatLng(
                                     _lat,
                                     _lng,
                                   ),
@@ -882,209 +918,307 @@ class _MainScreenState extends State<MainScreen> {
   // ==========================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            HeaderBar(
-              currentLocationName:
-                  _locationName,
-              onSelectPreset: (preset) {
-                setState(() {
-                  _lat = preset.lat;
-                  _lng = preset.lng;
-                  _locationName = preset.name;
-                });
+      body: Container(
+        decoration:
+            const BoxDecoration(
+          gradient:
+              LinearGradient(
+            begin:
+                Alignment.topCenter,
+            end:
+                Alignment.bottomCenter,
+            colors: [
+              Color(0xFF0B172A),
+              Color(0xFF08111F),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // =================================================
+              // HLAVIČKA
+              // =================================================
 
-                _fetchWeatherData();
-              },
-              onUseGps: _initGpsLocation,
-              showRadarOverlay: _showRadar,
-              onToggleRadar: () {
-                setState(() {
-                  _showRadar = !_showRadar;
-                });
-              },
-            ),
+              HeaderBar(
+                currentLocationName:
+                    _locationName,
+                onSelectPreset:
+                    (preset) {
+                  setState(() {
+                    _lat =
+                        preset.lat;
+                    _lng =
+                        preset.lng;
+                    _locationName =
+                        preset.name;
+                  });
 
-            Expanded(
-              child: Column(
-                children: [
-                  Expanded(
-                    child: PageView(
-                      controller:
-                          _pageController,
-                      onPageChanged: (index) {
-                        setState(() {
-                          _currentPage = index;
-                        });
-                      },
-                      children: [
-                        // =================================================
-                        // STRÁNKA 1 – DÁŽĎ
-                        // =================================================
+                  _fetchWeatherData();
+                },
+                onUseGps:
+                    _initGpsLocation,
+                showRadarOverlay:
+                    _showRadar,
+                onToggleRadar: () {
+                  setState(() {
+                    _showRadar =
+                        !_showRadar;
+                  });
+                },
+              ),
 
-                        Padding(
-                          padding:
-                              const EdgeInsets.all(16),
-                          child:
-                              SingleChildScrollView(
+              // =================================================
+              // OBSAH
+              // =================================================
+
+              Expanded(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child:
+                          PageView(
+                        controller:
+                            _pageController,
+                        onPageChanged:
+                            (index) {
+                          setState(() {
+                            _currentPage =
+                                index;
+                          });
+                        },
+                        children: [
+                          // ======================================
+                          // STRÁNKA 1
+                          // HLAVNÁ PREDPOVEĎ
+                          // ======================================
+
+                          Padding(
+                            padding:
+                                const EdgeInsets
+                                    .fromLTRB(
+                              16,
+                              12,
+                              16,
+                              0,
+                            ),
                             child:
-                                RainArrivalWidget(
+                                SingleChildScrollView(
+                              physics:
+                                  const BouncingScrollPhysics(),
+                              child:
+                                  RainArrivalWidget(
+                                meteoData:
+                                    _meteoData,
+                                isLoading:
+                                    _isLoadingMeteo,
+                                onRefresh:
+                                    _fetchWeatherData,
+                                onOpenMap:
+                                    _openFullMap,
+                              ),
+                            ),
+                          ),
+
+                          // ======================================
+                          // STRÁNKA 2
+                          // SENZORY
+                          // ======================================
+
+                          Padding(
+                            padding:
+                                const EdgeInsets
+                                    .fromLTRB(
+                              16,
+                              12,
+                              16,
+                              0,
+                            ),
+                            child:
+                                SingleChildScrollView(
+                              physics:
+                                  const BouncingScrollPhysics(),
+                              child:
+                                  Column(
+                                children: [
+                                  SensorPanel(
+                                    barometer:
+                                        _barometerState,
+                                    onSimulateDrop:
+                                        _simulatePressureDrop,
+                                    onSimulateMotion:
+                                        _simulateMotionToggle,
+                                    onResetSensors:
+                                        () {
+                                      setState(
+                                        () {
+                                          _barometerState =
+                                              _barometerState
+                                                  .copyWith(
+                                            basePressure:
+                                                _barometerState
+                                                    .currentPressure,
+                                            pressureChangeRate:
+                                                0.0,
+                                            estimatedAltitude:
+                                                0.0,
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
+
+                                  const SizedBox(
+                                    height: 12,
+                                  ),
+
+                                  BarometerWarningWidget(
+                                    barometer:
+                                        _barometerState,
+                                  ),
+
+                                  const SizedBox(
+                                    height: 12,
+                                  ),
+
+                                  _buildAdditionalSensorsPanel(),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // ======================================
+                          // STRÁNKA 3
+                          // SKY ANALYZER
+                          // ======================================
+
+                          Padding(
+                            padding:
+                                const EdgeInsets
+                                    .fromLTRB(
+                              16,
+                              12,
+                              16,
+                              0,
+                            ),
+                            child:
+                                SkyAnalyzerWidget(
+                              lat: _lat,
+                              lng: _lng,
+                              heading:
+                                  _heading,
+                              tiltX:
+                                  _tiltX,
+                              tiltY:
+                                  _tiltY,
+                              barometer:
+                                  _barometerState,
                               meteoData:
                                   _meteoData,
-                              isLoading:
-                                  _isLoadingMeteo,
-                              onRefresh:
-                                  _fetchWeatherData,
-                              onOpenMap:
-                                  _openFullMap,
                             ),
                           ),
-                        ),
-
-                        // =================================================
-                        // STRÁNKA 2 – SENZORY
-                        // =================================================
-
-                        Padding(
-                          padding:
-                              const EdgeInsets.all(16),
-                          child:
-                              SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                SensorPanel(
-                                  barometer:
-                                      _barometerState,
-                                  onSimulateDrop:
-                                      _simulatePressureDrop,
-                                  onSimulateMotion:
-                                      _simulateMotionToggle,
-                                  onResetSensors: () {
-                                    setState(() {
-                                      _barometerState =
-                                          _barometerState
-                                              .copyWith(
-                                        basePressure:
-                                            _barometerState
-                                                .currentPressure,
-                                        pressureChangeRate:
-                                            0.0,
-                                        estimatedAltitude:
-                                            0.0,
-                                      );
-                                    });
-                                  },
-                                ),
-
-                                const SizedBox(
-                                  height: 12,
-                                ),
-
-                                BarometerWarningWidget(
-                                  barometer:
-                                      _barometerState,
-                                ),
-
-                                const SizedBox(
-                                  height: 12,
-                                ),
-
-                                _buildAdditionalSensorsPanel(),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // =================================================
-                        // STRÁNKA 3 – SKY ANALYZER
-                        // =================================================
-
-                        Padding(
-                          padding:
-                              const EdgeInsets.all(16),
-                          child: SkyAnalyzerWidget(
-                            lat: _lat,
-                            lng: _lng,
-                            heading: _heading,
-                            tiltX: _tiltX,
-                            tiltY: _tiltY,
-                            barometer:
-                                _barometerState,
-                            meteoData:
-                                _meteoData,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
 
-                  // =======================================================
-                  // INDIKÁTOR STRÁNOK
-                  // =======================================================
+                    // =================================================
+                    // INDIKÁTOR STRÁNOK
+                    // =================================================
 
-                  Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.center,
-                    children:
-                        List.generate(
-                      3,
-                      (index) {
-                        return AnimatedContainer(
-                          duration:
-                              const Duration(
-                            milliseconds: 300,
-                          ),
-                          margin:
-                              const EdgeInsets
-                                  .symmetric(
-                            horizontal: 4,
-                            vertical: 12,
-                          ),
-                          width:
-                              _currentPage == index
-                                  ? 20
-                                  : 8,
-                          height: 8,
-                          decoration:
-                              BoxDecoration(
-                            color:
-                                _currentPage ==
-                                        index
-                                    ? Colors
-                                        .blueAccent
-                                    : Colors
-                                        .white24,
-                            borderRadius:
-                                BorderRadius.circular(
-                              4,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
+                    _buildPageIndicator(),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   // ==========================================================
-  // PANEL ĎALŠÍCH SENZOROV
+  // PAGE INDICATOR
+  // ==========================================================
+
+  Widget _buildPageIndicator() {
+    return Padding(
+      padding:
+          const EdgeInsets.only(
+        top: 8,
+        bottom: 10,
+      ),
+      child: Row(
+        mainAxisAlignment:
+            MainAxisAlignment.center,
+        children:
+            List.generate(
+          3,
+          (index) {
+            final bool active =
+                _currentPage ==
+                    index;
+
+            return AnimatedContainer(
+              duration:
+                  const Duration(
+                milliseconds: 250,
+              ),
+              curve:
+                  Curves.easeOut,
+              margin:
+                  const EdgeInsets
+                      .symmetric(
+                horizontal: 4,
+              ),
+              width:
+                  active ? 24 : 7,
+              height: 7,
+              decoration:
+                  BoxDecoration(
+                color: active
+                    ? Colors.blueAccent
+                    : Colors.white24,
+                borderRadius:
+                    BorderRadius.circular(
+                  10,
+                ),
+                boxShadow: active
+                    ? [
+                        BoxShadow(
+                          color: Colors
+                              .blueAccent
+                              .withOpacity(
+                            0.35,
+                          ),
+                          blurRadius: 8,
+                        ),
+                      ]
+                    : null,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // ĎALŠIE SENZORY
   // ==========================================================
 
   Widget _buildAdditionalSensorsPanel() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
+      padding:
+          const EdgeInsets.all(16),
+      decoration:
+          BoxDecoration(
+        color:
+            const Color(0xFF1E293B),
         borderRadius:
             BorderRadius.circular(16),
         border: Border.all(
@@ -1100,11 +1234,14 @@ class _MainScreenState extends State<MainScreen> {
             style: TextStyle(
               color: Colors.white,
               fontSize: 16,
-              fontWeight: FontWeight.bold,
+              fontWeight:
+                  FontWeight.bold,
             ),
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(
+            height: 14,
+          ),
 
           _sensorRow(
             '🔄 Gyroskop',
@@ -1171,14 +1308,18 @@ class _MainScreenState extends State<MainScreen> {
             _magZ.toStringAsFixed(1),
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(
+            height: 8,
+          ),
 
           const Text(
-            'Kompas používa magnetometer spolu s akcelerometrom '
-            'a koriguje smer podľa náklonu telefónu.',
+            'Kompas používa magnetometer spolu '
+            's akcelerometrom a koriguje smer '
+            'podľa náklonu telefónu.',
             style: TextStyle(
               color: Colors.white54,
               fontSize: 12,
+              height: 1.4,
             ),
           ),
         ],
@@ -1203,19 +1344,28 @@ class _MainScreenState extends State<MainScreen> {
         mainAxisAlignment:
             MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            name,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
+          Expanded(
+            child: Text(
+              name,
+              style:
+                  const TextStyle(
+                color:
+                    Colors.white70,
+                fontSize: 13,
+              ),
             ),
+          ),
+          const SizedBox(
+            width: 12,
           ),
           Text(
             value,
-            style: const TextStyle(
+            style:
+                const TextStyle(
               color: Colors.white,
               fontSize: 13,
-              fontWeight: FontWeight.bold,
+              fontWeight:
+                  FontWeight.bold,
             ),
           ),
         ],
