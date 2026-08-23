@@ -100,12 +100,16 @@ class _MainScreenState extends State<MainScreen> {
   double _rotationMagnitude = 0.0;
 
   // ==========================================================
-  // MAGNETOMETER / KOMPAS
+  // MAGNETOMETER
   // ==========================================================
 
   double _magX = 0.0;
   double _magY = 0.0;
   double _magZ = 0.0;
+
+  // ==========================================================
+  // KOMPAS
+  // ==========================================================
 
   double _heading = 0.0;
 
@@ -263,6 +267,11 @@ class _MainScreenState extends State<MainScreen> {
           _accelZ = event.z;
 
           _calculateTilt();
+
+          // Dôležité:
+          // heading sa musí prepočítať aj po zmene
+          // náklonu telefónu.
+          _calculateHeading();
         },
         onError: (e) {
           debugPrint(
@@ -312,7 +321,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================================
-  // MAGNETOMETER / KOMPAS
+  // MAGNETOMETER
   // ==========================================================
 
   void _initMagnetometer() {
@@ -324,6 +333,8 @@ class _MainScreenState extends State<MainScreen> {
           _magY = event.y;
           _magZ = event.z;
 
+          // Heading sa počíta spolu s akcelerometrom,
+          // aby sme vedeli kompenzovať náklon.
           _calculateHeading();
         },
         onError: (e) {
@@ -427,7 +438,7 @@ class _MainScreenState extends State<MainScreen> {
 
     final bool moving =
         accelerationMovement ||
-        rotationMovement;
+            rotationMovement;
 
     if (moving !=
         _barometerState.isMovingVertically) {
@@ -475,20 +486,158 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================================
-  // KOMPAS
+  // TILT-COMPENSATED KOMPAS
+  //
+  // Toto je podstatná oprava.
+  //
+  // Magnetometer sám o sebe nevie, kam smeruje horná
+  // hrana telefónu, keď je telefón naklonený.
+  //
+  // Ak telefón držíš napríklad približne kolmo,
+  // magnetické pole sa premietne do všetkých troch osí.
+  //
+  // Preto vytvoríme orientačnú maticu podobne ako
+  // Android SensorManager:
+  //
+  // X = východ
+  // Y = sever
+  // Z = hore
+  //
+  // Z nej získame azimut hornej hrany telefónu.
   // ==========================================================
 
   void _calculateHeading() {
+    // Ak nemáme použiteľné dáta, nič nerobíme.
+    final double gravityMagnitude = math.sqrt(
+      _accelX * _accelX +
+          _accelY * _accelY +
+          _accelZ * _accelZ,
+    );
+
+    final double magneticMagnitude = math.sqrt(
+      _magX * _magX +
+          _magY * _magY +
+          _magZ * _magZ,
+    );
+
+    if (gravityMagnitude < 0.1 ||
+        magneticMagnitude < 0.1) {
+      return;
+    }
+
+    // --------------------------------------------------------
+    // NORMALIZOVANÝ GRAVITAČNÝ VEKTOR
+    // --------------------------------------------------------
+
+    final double ax =
+        _accelX / gravityMagnitude;
+
+    final double ay =
+        _accelY / gravityMagnitude;
+
+    final double az =
+        _accelZ / gravityMagnitude;
+
+    // --------------------------------------------------------
+    // MAGNETICKÝ VEKTOR
+    // --------------------------------------------------------
+
+    final double mx = _magX;
+    final double my = _magY;
+    final double mz = _magZ;
+
+    // --------------------------------------------------------
+    // VÝCHOD = M x GRAVITAČNÝ VEKTOR
+    //
+    // Toto odstráni vplyv náklonu telefónu.
+    // --------------------------------------------------------
+
+    double eastX =
+        my * az - mz * ay;
+
+    double eastY =
+        mz * ax - mx * az;
+
+    double eastZ =
+        mx * ay - my * ax;
+
+    final double eastMagnitude = math.sqrt(
+      eastX * eastX +
+          eastY * eastY +
+          eastZ * eastZ,
+    );
+
+    if (eastMagnitude < 0.01) {
+      return;
+    }
+
+    eastX /= eastMagnitude;
+    eastY /= eastMagnitude;
+    eastZ /= eastMagnitude;
+
+    // --------------------------------------------------------
+    // SEVER = GRAVITAČNÝ VEKTOR × VÝCHOD
+    // --------------------------------------------------------
+
+    double northX =
+        ay * eastZ - az * eastY;
+
+    double northY =
+        az * eastX - ax * eastZ;
+
+    double northZ =
+        az * eastY - ay * eastX;
+
+    final double northMagnitude = math.sqrt(
+      northX * northX +
+          northY * northY +
+          northZ * northZ,
+    );
+
+    if (northMagnitude < 0.01) {
+      return;
+    }
+
+    northX /= northMagnitude;
+    northY /= northMagnitude;
+    northZ /= northMagnitude;
+
+    // --------------------------------------------------------
+    // AZIMUT HORNEJ HRANY TELEFÓNU
+    //
+    // Horizontálna orientácia hornej hrany telefónu.
+    //
+    // atan2(EAST, NORTH):
+    //
+    // 0   = sever
+    // 90  = východ
+    // 180 = juh
+    // 270 = západ
+    // --------------------------------------------------------
+
     double heading =
         math.atan2(
-          _magY,
-          _magX,
+          eastY,
+          northY,
         ) *
         180 /
         math.pi;
 
+    // --------------------------------------------------------
+    // Alternatívne použitie horizontálnej projekcie
+    // severného vektora.
+    //
+    // Pri niektorých orientáciách zariadenia je potrebné
+    // použiť správnu projekciu podľa toho, ktorá os
+    // predstavuje hornú hranu telefónu.
+    // --------------------------------------------------------
+
     if (heading < 0) {
       heading += 360;
+    }
+
+    if (heading >= 360) {
+      heading -= 360;
     }
 
     _heading = heading;
@@ -1025,8 +1174,8 @@ class _MainScreenState extends State<MainScreen> {
           const SizedBox(height: 8),
 
           const Text(
-            'Tieto údaje môžeme použiť pri filtrovaní '
-            'pohybu a pri vytváraní meteorologického modelu.',
+            'Kompas používa magnetometer spolu s akcelerometrom '
+            'a koriguje smer podľa náklonu telefónu.',
             style: TextStyle(
               color: Colors.white54,
               fontSize: 12,
