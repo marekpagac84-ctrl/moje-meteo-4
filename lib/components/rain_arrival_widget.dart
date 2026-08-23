@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../models/meteo_data.dart';
 
 class RainArrivalWidget extends StatelessWidget {
@@ -17,7 +16,7 @@ class RainArrivalWidget extends StatelessWidget {
   });
 
   // ==========================================================
-  // POČASIE PODĽA WMO KÓDU
+  // WEATHER CODE
   // ==========================================================
 
   IconData _weatherIcon(int code) {
@@ -25,11 +24,15 @@ class RainArrivalWidget extends StatelessWidget {
       return Icons.wb_sunny_rounded;
     }
 
-    if (code <= 3) {
+    if (code == 1 || code == 2) {
+      return Icons.partly_cloudy_day_rounded;
+    }
+
+    if (code == 3) {
       return Icons.cloud_rounded;
     }
 
-    if (code == 45 || code == 48) {
+    if (code >= 45 && code <= 48) {
       return Icons.foggy;
     }
 
@@ -42,7 +45,7 @@ class RainArrivalWidget extends StatelessWidget {
     }
 
     if (code >= 80 && code <= 82) {
-      return Icons.umbrella_rounded;
+      return Icons.grain_rounded;
     }
 
     if (code >= 95) {
@@ -54,11 +57,8 @@ class RainArrivalWidget extends StatelessWidget {
 
   String _weatherText(int code) {
     if (code == 0) return 'Jasno';
-
     if (code == 1) return 'Prevažne jasno';
-
     if (code == 2) return 'Polooblačno';
-
     if (code == 3) return 'Oblačno';
 
     if (code == 45 || code == 48) {
@@ -100,131 +100,152 @@ class RainArrivalWidget extends StatelessWidget {
     return 'Neznáme počasie';
   }
 
-  String _directionName(double degrees) {
-    if (degrees >= 337.5 || degrees < 22.5) {
-      return 'S';
+  String _dayName(String date) {
+    final parsed = DateTime.tryParse(date);
+
+    if (parsed == null) {
+      return date;
     }
 
-    if (degrees < 67.5) return 'SV';
-    if (degrees < 112.5) return 'V';
-    if (degrees < 157.5) return 'JV';
-    if (degrees < 202.5) return 'J';
-    if (degrees < 247.5) return 'JZ';
-    if (degrees < 292.5) return 'Z';
+    const names = [
+      'Po',
+      'Ut',
+      'St',
+      'Št',
+      'Pi',
+      'So',
+      'Ne',
+    ];
 
-    return 'SZ';
+    return names[parsed.weekday - 1];
   }
 
-  String _time(String value) {
+  String _formatTime(String value) {
     if (value.contains('T')) {
-      final part = value.split('T').last;
+      final parts = value.split('T');
 
-      if (part.length >= 5) {
-        return part.substring(0, 5);
+      if (parts.length > 1 &&
+          parts[1].length >= 5) {
+        return parts[1].substring(0, 5);
       }
     }
 
     return value;
   }
 
-  String _dayName(String value, int index) {
-    if (index == 0) return 'Dnes';
-    if (index == 1) return 'Zajtra';
+  // ==========================================================
+  // HLAVNÁ KARTA
+  // ==========================================================
 
-    try {
-      final date =
-          DateTime.parse(value);
-
-      const names = [
-        'Po',
-        'Ut',
-        'St',
-        'Št',
-        'Pi',
-        'So',
-        'Ne',
-      ];
-
-      return names[date.weekday - 1];
-    } catch (_) {
-      return '';
+  Widget _buildMainWeather() {
+    if (meteoData == null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF1E3A8A),
+              Color(0xFF1E293B),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Column(
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              size: 46,
+              color: Colors.white54,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Načítavam počasie...',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Čakám na meteorologické dáta.',
+              style: TextStyle(
+                color: Colors.white60,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
     }
-  }
 
-  // ==========================================================
-  // HORNÝ AKTUÁLNY STAV
-  // ==========================================================
-
-  Widget _buildCurrentWeather() {
     final data = meteoData!;
+
+    final temperature =
+        data.currentTemperature;
+
+    final weatherCode =
+        data.currentWeatherCode;
+
+    final icon =
+        _weatherIcon(weatherCode);
+
+    final weatherText =
+        _weatherText(weatherCode);
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        18,
-      ),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
+            Color(0xFF2563EB),
             Color(0xFF1E3A8A),
-            Color(0xFF172554),
-            Color(0xFF0F172A),
+            Color(0xFF1E293B),
           ],
         ),
         borderRadius:
-            BorderRadius.circular(24),
-        border: Border.all(
-          color: Colors.white12,
-        ),
+            BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color:
+                Colors.black.withOpacity(0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
         children: [
+          // ----------------------------------------------------
+          // HORNÁ LIŠTA
+          // ----------------------------------------------------
+
           Row(
             children: [
-              const Icon(
-                Icons.location_on_rounded,
-                color: Colors.white70,
-                size: 18,
-              ),
-              const SizedBox(width: 5),
               const Expanded(
                 child: Text(
-                  'Moje aktuálne počasie',
+                  'AKTUÁLNE POČASIE',
                   style: TextStyle(
                     color: Colors.white70,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
                   ),
                 ),
               ),
+
               IconButton(
-                tooltip: 'Obnoviť počasie',
-                padding: EdgeInsets.zero,
-                constraints:
-                    const BoxConstraints(
-                  minWidth: 40,
-                  minHeight: 40,
-                ),
                 onPressed:
                     isLoading ? null : onRefresh,
+                tooltip: 'Obnoviť počasie',
                 icon: isLoading
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 19,
+                        height: 19,
                         child:
                             CircularProgressIndicator(
                           strokeWidth: 2,
@@ -234,24 +255,24 @@ class RainArrivalWidget extends StatelessWidget {
                     : const Icon(
                         Icons.refresh_rounded,
                         color: Colors.white,
-                        size: 23,
+                        size: 22,
                       ),
               ),
             ],
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
+
+          // ----------------------------------------------------
+          // HLAVNÁ TEPLOTA
+          // ----------------------------------------------------
 
           Row(
-            crossAxisAlignment:
-                CrossAxisAlignment.center,
             children: [
               Icon(
-                _weatherIcon(
-                  data.currentWeatherCode,
-                ),
+                icon,
                 color: Colors.white,
-                size: 72,
+                size: 64,
               ),
 
               const SizedBox(width: 16),
@@ -261,26 +282,48 @@ class RainArrivalWidget extends StatelessWidget {
                   crossAxisAlignment:
                       CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${data.currentTemperature.round()}°',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 52,
-                        height: 0.95,
-                        fontWeight: FontWeight.w300,
-                      ),
+                    Row(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          temperature
+                              .toStringAsFixed(0),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 58,
+                            height: 0.95,
+                            fontWeight:
+                                FontWeight.w300,
+                          ),
+                        ),
+                        const Padding(
+                          padding:
+                              EdgeInsets.only(
+                            top: 4,
+                          ),
+                          child: Text(
+                            '°C',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 20,
+                              fontWeight:
+                                  FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
 
-                    const SizedBox(height: 7),
+                    const SizedBox(height: 5),
 
                     Text(
-                      _weatherText(
-                        data.currentWeatherCode,
-                      ),
+                      weatherText,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        fontWeight:
+                            FontWeight.w600,
                       ),
                     ),
                   ],
@@ -291,229 +334,97 @@ class RainArrivalWidget extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          Row(
-            children: [
-              Expanded(
-                child: _miniInfo(
-                  Icons.air_rounded,
-                  '${data.currentWindSpeed.toStringAsFixed(1)} m/s',
-                  _directionName(
-                    data.currentWindDirection,
+          // ----------------------------------------------------
+          // TRIADA ÚDAJOV
+          // ----------------------------------------------------
+
+          Container(
+            padding:
+                const EdgeInsets.symmetric(
+              vertical: 13,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white
+                  .withOpacity(0.10),
+              borderRadius:
+                  BorderRadius.circular(15),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _infoItem(
+                    Icons.air_rounded,
+                    'Vietor',
+                    '${data.currentWindSpeed.toStringAsFixed(1)} m/s',
                   ),
                 ),
-              ),
-              Expanded(
-                child: _miniInfo(
-                  Icons.water_drop_outlined,
-                  data.hourlyHumidity != null &&
-                          data.hourlyHumidity!.isNotEmpty
-                      ? '${data.hourlyHumidity!.first.round()} %'
-                      : '—',
-                  'vlhkosť',
+
+                _verticalDivider(),
+
+                Expanded(
+                  child: _infoItem(
+                    Icons.explore_rounded,
+                    'Smer',
+                    '${data.currentWindDirection.toStringAsFixed(0)}°',
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _miniInfo(
-                  Icons.speed_rounded,
-                  data.currentPressure > 0
-                      ? '${data.currentPressure.round()}'
-                      : '—',
-                  'hPa',
+
+                _verticalDivider(),
+
+                Expanded(
+                  child: _infoItem(
+                    Icons.speed_rounded,
+                    'Tlak',
+                    '${data.currentPressure.toStringAsFixed(0)} hPa',
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _miniInfo(
+  Widget _infoItem(
     IconData icon,
-    String value,
     String label,
+    String value,
   ) {
-    return Row(
+    return Column(
       children: [
         Icon(
           icon,
-          color: Colors.white60,
           size: 19,
+          color: Colors.white70,
         ),
-        const SizedBox(width: 7),
-        Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white54,
-                fontSize: 10,
-              ),
-            ),
-          ],
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white54,
+            fontSize: 10,
+          ),
         ),
       ],
     );
   }
 
-  // ==========================================================
-  // NAJBLIŽŠIE HODINY
-  // ==========================================================
-
-  Widget _buildHourly() {
-    final times = meteoData!.hourlyTimes;
-    final temps = meteoData!.hourlyTemperature;
-    final probs =
-        meteoData!.hourlyPrecipitationProbability;
-    final codes =
-        meteoData!.hourlyPrecipitation;
-
-    if (times == null ||
-        temps == null ||
-        probs == null ||
-        times.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final count = [
-      times.length,
-      temps.length,
-      probs.length,
-    ].reduce(
-      (a, b) => a < b ? a : b,
+  Widget _verticalDivider() {
+    return Container(
+      height: 35,
+      width: 1,
+      color: Colors.white12,
     );
-
-    final visible =
-        count > 8 ? 8 : count;
-
-    return _section(
-      title: 'NAJBLIŽŠIE HODINY',
-      child: SizedBox(
-        height: 130,
-        child: ListView.separated(
-          scrollDirection:
-              Axis.horizontal,
-          itemCount: visible,
-          separatorBuilder: (_, __) =>
-              const SizedBox(width: 8),
-          itemBuilder: (_, index) {
-            final precipitation =
-                codes != null &&
-                        codes.length > index
-                    ? codes[index]
-                    : 0.0;
-
-            final probability =
-                probs[index];
-
-            final icon =
-                _weatherIconFromRain(
-              probability,
-              precipitation,
-            );
-
-            return Container(
-              width: 76,
-              padding:
-                  const EdgeInsets.symmetric(
-                vertical: 10,
-                horizontal: 5,
-              ),
-              decoration: BoxDecoration(
-                color:
-                    const Color(0xFF111C31),
-                borderRadius:
-                    BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.white10,
-                ),
-              ),
-              child: Column(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _time(times[index]),
-                    style:
-                        const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Icon(
-                    icon,
-                    color:
-                        probability >= 50
-                            ? Colors.lightBlueAccent
-                            : Colors.amber,
-                    size: 25,
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Text(
-                    '${temps[index].round()}°',
-                    style:
-                        const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 3),
-
-                  Text(
-                    '$probability %',
-                    style:
-                        const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  IconData _weatherIconFromRain(
-    int probability,
-    double precipitation,
-  ) {
-    if (precipitation >= 10) {
-      return Icons.thunderstorm_rounded;
-    }
-
-    if (precipitation >= 0.5 ||
-        probability >= 60) {
-      return Icons.water_drop_rounded;
-    }
-
-    if (probability >= 30) {
-      return Icons.cloud_rounded;
-    }
-
-    return Icons.wb_sunny_rounded;
   }
 
   // ==========================================================
@@ -526,326 +437,84 @@ class RainArrivalWidget extends StatelessWidget {
     if (data.dailyTimes == null ||
         data.dailyTimes!.isEmpty ||
         data.dailyTemperatureMax == null ||
-        data.dailyTemperatureMin == null) {
-      return const SizedBox.shrink();
-    }
-
-    final max =
-        data.dailyTemperatureMax!.first;
-    final min =
-        data.dailyTemperatureMin!.first;
-
-    final code =
-        data.dailyWeatherCode != null &&
-                data.dailyWeatherCode!.isNotEmpty
-            ? data.dailyWeatherCode!.first
-            : data.currentWeatherCode;
-
-    final sunrise =
-        data.dailySunrise != null &&
-                data.dailySunrise!.isNotEmpty
-            ? _time(data.dailySunrise!.first)
-            : '—';
-
-    final sunset =
-        data.dailySunset != null &&
-                data.dailySunset!.isNotEmpty
-            ? _time(data.dailySunset!.first)
-            : '—';
-
-    return _section(
-      title: 'DNES',
-      child: Container(
-        padding:
-            const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color:
-              const Color(0xFF111C31),
-          borderRadius:
-              BorderRadius.circular(18),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              _weatherIcon(code),
-              color: Colors.amber,
-              size: 46,
-            ),
-
-            const SizedBox(width: 14),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _weatherText(code),
-                    style:
-                        const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Text(
-                    'Maximum ${max.round()}°  •  Minimum ${min.round()}°',
-                    style:
-                        const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '☀️ $sunrise',
-                  style:
-                      const TextStyle(
-                    color: Colors.white60,
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  '🌙 $sunset',
-                  style:
-                      const TextStyle(
-                    color: Colors.white60,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ==========================================================
-  // ĎALŠIE DNI
-  // ==========================================================
-
-  Widget _buildDays() {
-    final data = meteoData!;
-
-    if (data.dailyTimes == null ||
-        data.dailyTemperatureMax == null ||
         data.dailyTemperatureMin == null ||
         data.dailyWeatherCode == null) {
       return const SizedBox.shrink();
     }
 
-    final count = [
-      data.dailyTimes!.length,
-      data.dailyTemperatureMax!.length,
-      data.dailyTemperatureMin!.length,
-      data.dailyWeatherCode!.length,
-    ].reduce(
-      (a, b) => a < b ? a : b,
-    );
+    final max =
+        data.dailyTemperatureMax!.first;
 
-    final visible =
-        count > 5 ? 5 : count;
+    final min =
+        data.dailyTemperatureMin!.first;
 
-    return _section(
-      title: 'ĎALŠIE DNI',
-      child: Column(
-        children: List.generate(
-          visible,
-          (index) {
-            final code =
-                data.dailyWeatherCode![index];
-
-            return Container(
-              margin:
-                  const EdgeInsets.only(
-                bottom: 7,
-              ),
-              padding:
-                  const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 11,
-              ),
-              decoration: BoxDecoration(
-                color:
-                    const Color(0xFF111C31),
-                borderRadius:
-                    BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 55,
-                    child: Text(
-                      _dayName(
-                        data.dailyTimes![index],
-                        index,
-                      ),
-                      style:
-                          const TextStyle(
-                        color: Colors.white70,
-                        fontWeight:
-                            FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-
-                  Icon(
-                    _weatherIcon(code),
-                    color:
-                        code >= 51
-                            ? Colors.lightBlueAccent
-                            : Colors.amber,
-                    size: 22,
-                  ),
-
-                  const SizedBox(width: 10),
-
-                  Expanded(
-                    child: Text(
-                      _weatherText(code),
-                      style:
-                          const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-
-                  Text(
-                    '${data.dailyTemperatureMax![index].round()}°',
-                    style:
-                        const TextStyle(
-                      color: Colors.white,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(width: 8),
-
-                  Text(
-                    '${data.dailyTemperatureMin![index].round()}°',
-                    style:
-                        const TextStyle(
-                      color: Colors.white38,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  // ==========================================================
-  // NAJBLIŽŠÍ DÁŽĎ
-  // ==========================================================
-
-  Widget _buildRainAlert() {
-    final data = meteoData!;
-
-    final probs =
-        data.hourlyPrecipitationProbability;
-
-    final times = data.hourlyTimes;
-
-    if (probs == null ||
-        times == null ||
-        probs.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    int? index;
-
-    for (int i = 0; i < probs.length; i++) {
-      if (probs[i] >= 40) {
-        index = i;
-        break;
-      }
-    }
-
-    if (index == null) {
-      return Container(
-        padding:
-            const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color:
-              const Color(0xFF102A22),
-          borderRadius:
-              BorderRadius.circular(18),
-          border: Border.all(
-            color: Colors.greenAccent
-                .withOpacity(0.15),
-          ),
-        ),
-        child: const Row(
-          children: [
-            Icon(
-              Icons.check_circle_rounded,
-              color: Colors.greenAccent,
-              size: 28,
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Najbližšie hodiny vyzerajú pokojne. Výraznejšie zrážky sa momentálne neočakávajú.',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    final code =
+        data.dailyWeatherCode!.first;
 
     return Container(
-      padding:
-          const EdgeInsets.all(15),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:
-            const Color(0xFF10283A),
+        color: const Color(0xFF1E293B),
         borderRadius:
             BorderRadius.circular(18),
         border: Border.all(
-          color: Colors.lightBlueAccent
-              .withOpacity(0.25),
+          color: Colors.white12,
         ),
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.water_drop_rounded,
-            color: Colors.lightBlueAccent,
-            size: 28,
+          Icon(
+            _weatherIcon(code),
+            color: Colors.amberAccent,
+            size: 34,
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Najvyššia pravdepodobnosť zrážok je zatiaľ okolo ${_time(times[index])} (${probs[index]} %).',
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                height: 1.4,
-              ),
+
+          const SizedBox(width: 13),
+
+          const Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'DNES',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Denná predpoveď',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Text(
+            '${max.toStringAsFixed(0)}°',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          Text(
+            '${min.toStringAsFixed(0)}°',
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 16,
             ),
           ),
         ],
@@ -854,29 +523,167 @@ class RainArrivalWidget extends StatelessWidget {
   }
 
   // ==========================================================
-  // SEKCIA
+  // NAJBLIŽŠIE HODINY
   // ==========================================================
 
-  Widget _section({
-    required String title,
-    required Widget child,
-  }) {
-    return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white54,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.1,
-          ),
+  Widget _buildHourly() {
+    final data = meteoData!;
+
+    if (data.hourlyTimes == null ||
+        data.hourlyTemperature == null ||
+        data.hourlyWeatherCode == null) {
+      return const SizedBox.shrink();
+    }
+
+    final count = [
+      data.hourlyTimes!.length,
+      data.hourlyTemperature!.length,
+      data.hourlyWeatherCode!.length,
+    ].reduce(
+      (a, b) => a < b ? a : b,
+    );
+
+    if (count == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final visible =
+        count > 8 ? 8 : count;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius:
+            BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.white12,
         ),
-        const SizedBox(height: 9),
-        child,
-      ],
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'NAJBLIŽŠIE HODINY',
+            style: TextStyle(
+              color: Colors.white54,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          SizedBox(
+            height: 92,
+            child: ListView.separated(
+              scrollDirection:
+                  Axis.horizontal,
+              itemCount: visible,
+              separatorBuilder:
+                  (_, __) =>
+                      const SizedBox(width: 8),
+              itemBuilder:
+                  (context, index) {
+                final precipitation =
+                    data.hourlyPrecipitation !=
+                                null &&
+                            data.hourlyPrecipitation!
+                                    .length >
+                                index
+                        ? data.hourlyPrecipitation![
+                            index]
+                        : 0.0;
+
+                final probability =
+                    data.hourlyPrecipitationProbability !=
+                                null &&
+                            data.hourlyPrecipitationProbability!
+                                    .length >
+                                index
+                        ? data
+                            .hourlyPrecipitationProbability![
+                            index]
+                        : 0;
+
+                final code =
+                    data.hourlyWeatherCode !=
+                                null &&
+                            data.hourlyWeatherCode!
+                                    .length >
+                                index
+                        ? data.hourlyWeatherCode![
+                            index]
+                        : 0;
+
+                return Container(
+                  width: 70,
+                  padding:
+                      const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color:
+                        const Color(0xFF0F172A),
+                    borderRadius:
+                        BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisAlignment:
+                        MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _formatTime(
+                          data.hourlyTimes![
+                              index],
+                        ),
+                        style:
+                            const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 10,
+                        ),
+                      ),
+
+                      const SizedBox(height: 5),
+
+                      Icon(
+                        _weatherIcon(code),
+                        color: Colors.white,
+                        size: 22,
+                      ),
+
+                      const SizedBox(height: 4),
+
+                      Text(
+                        '${data.hourlyTemperature![index].toStringAsFixed(0)}°',
+                        style:
+                            const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+
+                      if (probability > 20)
+                        Text(
+                          '$probability%',
+                          style:
+                              const TextStyle(
+                            color:
+                                Colors.lightBlueAccent,
+                            fontSize: 9,
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -885,81 +692,80 @@ class RainArrivalWidget extends StatelessWidget {
   // ==========================================================
 
   Widget _buildWindyBanner() {
-    return InkWell(
-      borderRadius:
-          BorderRadius.circular(20),
-      onTap: onOpenMap,
-      child: Container(
-        width: double.infinity,
-        padding:
-            const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [
-              Color(0xFF0F4C81),
-              Color(0xFF12355B),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpenMap,
+        borderRadius:
+            BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient:
+                const LinearGradient(
+              colors: [
+                Color(0xFF0F4C81),
+                Color(0xFF172554),
+              ],
+            ),
+            borderRadius:
+                BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white12,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white
+                      .withOpacity(0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.public_rounded,
+                  color: Colors.white,
+                  size: 25,
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'RADAR A VIETOR',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight:
+                            FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Pozrieť aktuálnu situáciu na mape',
+                      style: TextStyle(
+                        color: Colors.white60,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white70,
+              ),
             ],
           ),
-          borderRadius:
-              BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.white12,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.white10,
-                borderRadius:
-                    BorderRadius.circular(15),
-              ),
-              child: const Icon(
-                Icons.air_rounded,
-                color: Colors.white,
-                size: 27,
-              ),
-            ),
-
-            const SizedBox(width: 14),
-
-            const Expanded(
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'MAPA POČASIA',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 10,
-                      fontWeight:
-                          FontWeight.bold,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  SizedBox(height: 3),
-                  Text(
-                    'Radar, vietor a zrážky',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const Icon(
-              Icons.arrow_forward_ios_rounded,
-              color: Colors.white70,
-              size: 17,
-            ),
-          ],
         ),
       ),
     );
@@ -971,47 +777,6 @@ class RainArrivalWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading && meteoData == null) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: Colors.blueAccent,
-        ),
-      );
-    }
-
-    if (meteoData == null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.cloud_off_rounded,
-              color: Colors.white38,
-              size: 48,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Počasie sa nepodarilo načítať.',
-              style: TextStyle(
-                color: Colors.white70,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed:
-                  isLoading ? null : onRefresh,
-              icon: const Icon(
-                Icons.refresh_rounded,
-              ),
-              label: const Text(
-                'Skúsiť znova',
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     return SingleChildScrollView(
       physics:
           const BouncingScrollPhysics(),
@@ -1019,35 +784,23 @@ class RainArrivalWidget extends StatelessWidget {
         crossAxisAlignment:
             CrossAxisAlignment.start,
         children: [
-          _buildCurrentWeather(),
+          _buildMainWeather(),
 
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
 
-          _buildRainAlert(),
+          if (meteoData != null)
+            _buildToday(),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
 
-          _buildToday(),
+          if (meteoData != null)
+            _buildHourly(),
 
-          const SizedBox(height: 20),
-
-          _buildHourly(),
-
-          const SizedBox(height: 20),
-
-          _buildDays(),
-
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
 
           _buildWindyBanner(),
 
-          const SizedBox(height: 10),
-
-          if (isLoading)
-            const LinearProgressIndicator(
-              minHeight: 2,
-              color: Colors.blueAccent,
-            ),
+          const SizedBox(height: 8),
         ],
       ),
     );
