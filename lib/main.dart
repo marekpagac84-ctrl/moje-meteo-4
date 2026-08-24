@@ -447,9 +447,11 @@ class _MainScreenState extends State<MainScreen> {
         _rotationMagnitude > 1.2;
 
     final bool moving =
-        accelerationMovement || rotationMovement;
+        accelerationMovement ||
+            rotationMovement;
 
-    if (moving != _barometerState.isMovingVertically) {
+    if (moving !=
+        _barometerState.isMovingVertically) {
       setState(() {
         _barometerState =
             _barometerState.copyWith(
@@ -525,7 +527,6 @@ class _MainScreenState extends State<MainScreen> {
     final double my = _magY;
     final double mz = _magZ;
 
-    // VÝCHOD
     double eastX =
         my * az - mz * ay;
 
@@ -549,7 +550,6 @@ class _MainScreenState extends State<MainScreen> {
     eastY /= eastMagnitude;
     eastZ /= eastMagnitude;
 
-    // SEVER
     double northX =
         ay * eastZ -
             az * eastY;
@@ -597,11 +597,6 @@ class _MainScreenState extends State<MainScreen> {
 
   // ==========================================================
   // METEO API
-  //
-  // TOTO JE DÔLEŽITÁ OPRAVA.
-  //
-  // MeteoApiData teraz očakáva CURRENT + HOURLY + DAILY.
-  // Preto musíme Open-Meteo požiadať presne o tieto údaje.
   // ==========================================================
 
   Future<void> _fetchWeatherData() async {
@@ -629,7 +624,8 @@ class _MainScreenState extends State<MainScreen> {
         'wind_direction_10m,'
         'wind_speed_10m,'
         'relative_humidity_2m,'
-        'surface_pressure'
+        'surface_pressure,'
+        'weather_code'
         '&daily='
         'temperature_2m_max,'
         'temperature_2m_min,'
@@ -673,10 +669,6 @@ class _MainScreenState extends State<MainScreen> {
           json.decode(response.body)
               as Map<String, dynamic>;
 
-      debugPrint(
-        'METEO API DATA RECEIVED',
-      );
-
       final MeteoApiData meteo =
           MeteoApiData.fromJson(data);
 
@@ -688,28 +680,29 @@ class _MainScreenState extends State<MainScreen> {
       });
 
       debugPrint(
-        'CURRENT TEMP: '
-        '${meteo.currentTemperature}',
+        'CURRENT TEMP: ${meteo.currentTemperature}',
       );
 
       debugPrint(
-        'CURRENT WIND: '
-        '${meteo.currentWindSpeed}',
+        'CURRENT WIND: ${meteo.currentWindSpeed}',
       );
 
       debugPrint(
-        'CURRENT PRESSURE: '
-        '${meteo.currentPressure}',
+        'CURRENT PRESSURE: ${meteo.currentPressure}',
       );
 
       debugPrint(
-        'WEATHER CODE: '
-        '${meteo.currentWeatherCode}',
+        'WEATHER CODE: ${meteo.currentWeatherCode}',
       );
 
       debugPrint(
         'HOURLY ITEMS: '
         '${meteo.hourlyTimes?.length ?? 0}',
+      );
+
+      debugPrint(
+        'HOURLY WEATHER CODES: '
+        '${meteo.hourlyWeatherCode?.length ?? 0}',
       );
 
       debugPrint(
@@ -796,7 +789,8 @@ class _MainScreenState extends State<MainScreen> {
           ) {
             return Container(
               height:
-                  MediaQuery.of(context).size.height * 0.88,
+                  MediaQuery.of(context).size.height *
+                      0.88,
               decoration: const BoxDecoration(
                 color: Color(0xFF1E293B),
                 borderRadius: BorderRadius.vertical(
@@ -806,7 +800,8 @@ class _MainScreenState extends State<MainScreen> {
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(
+                    padding:
+                        const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
                     ),
@@ -823,7 +818,8 @@ class _MainScreenState extends State<MainScreen> {
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              fontWeight:
+                                  FontWeight.bold,
                             ),
                           ),
                         ),
@@ -921,10 +917,6 @@ class _MainScreenState extends State<MainScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // =================================================
-              // HLAVIČKA
-              // =================================================
-
               HeaderBar(
                 currentLocationName:
                     _locationName,
@@ -937,20 +929,14 @@ class _MainScreenState extends State<MainScreen> {
 
                   _fetchWeatherData();
                 },
-                onUseGps:
-                    _initGpsLocation,
-                showRadarOverlay:
-                    _showRadar,
+                onUseGps: _initGpsLocation,
+                showRadarOverlay: _showRadar,
                 onToggleRadar: () {
                   setState(() {
                     _showRadar = !_showRadar;
                   });
                 },
               ),
-
-              // =================================================
-              // OBSAH
-              // =================================================
 
               Expanded(
                 child: Column(
@@ -964,10 +950,9 @@ class _MainScreenState extends State<MainScreen> {
                           });
                         },
                         children: [
-                          // ======================================
+                          // ==================================================
                           // STRÁNKA 1
-                          // HLAVNÁ PREDPOVEĎ
-                          // ======================================
+                          // ==================================================
 
                           Padding(
                             padding:
@@ -983,8 +968,7 @@ class _MainScreenState extends State<MainScreen> {
                                   const BouncingScrollPhysics(),
                               child:
                                   RainArrivalWidget(
-                                meteoData:
-                                    _meteoData,
+                                meteoData: _meteoData,
                                 isLoading:
                                     _isLoadingMeteo,
                                 onRefresh:
@@ -995,10 +979,9 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                           ),
 
-                          // ======================================
+                          // ==================================================
                           // STRÁNKA 2
-                          // SENZORY
-                          // ======================================
+                          // ==================================================
 
                           Padding(
                             padding:
@@ -1021,8 +1004,7 @@ class _MainScreenState extends State<MainScreen> {
                                         _simulatePressureDrop,
                                     onSimulateMotion:
                                         _simulateMotionToggle,
-                                    onResetSensors:
-                                        () {
+                                    onResetSensors: () {
                                       setState(() {
                                         _barometerState =
                                             _barometerState
@@ -1058,10 +1040,9 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                           ),
 
-                          // ======================================
+                          // ==================================================
                           // STRÁNKA 3
-                          // SKY ANALYZER
-                          // ======================================
+                          // ==================================================
 
                           Padding(
                             padding:
@@ -1080,17 +1061,12 @@ class _MainScreenState extends State<MainScreen> {
                               tiltY: _tiltY,
                               barometer:
                                   _barometerState,
-                              meteoData:
-                                  _meteoData,
+                              meteoData: _meteoData,
                             ),
                           ),
                         ],
                       ),
                     ),
-
-                    // =================================================
-                    // INDIKÁTOR
-                    // =================================================
 
                     _buildPageIndicator(),
                   ],
