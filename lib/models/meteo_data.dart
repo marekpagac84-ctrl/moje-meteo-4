@@ -1,3 +1,7 @@
+// ============================================================
+// PRESSURE POINT
+// ============================================================
+
 class PressurePoint {
   final DateTime timestamp;
   final double pressure;
@@ -7,6 +11,10 @@ class PressurePoint {
     required this.pressure,
   });
 }
+
+// ============================================================
+// BAROMETER STATE
+// ============================================================
 
 class BarometerState {
   final double currentPressure;
@@ -50,6 +58,10 @@ class BarometerState {
   }
 }
 
+// ============================================================
+// METEO API DATA
+// ============================================================
+
 class MeteoApiData {
   // ==========================================================
   // AKTUÁLNE
@@ -90,7 +102,7 @@ class MeteoApiData {
   final List<String>? dailySunset;
 
   // ==========================================================
-  // STARŠIE
+  // ODVOZENÉ INFORMÁCIE
   // ==========================================================
 
   final int? rainArrivalMinutes;
@@ -125,11 +137,279 @@ class MeteoApiData {
     this.rainArrivalMinutes,
   });
 
+  // ==========================================================
+  // AKTUÁLNY INDEX V HODINOVEJ PREDPOVEDI
+  //
+  // Open-Meteo vracia hodinové údaje od začiatku
+  // predpovedného radu. Preto nesmieme automaticky
+  // zobrazovať index 0.
+  // ==========================================================
+
+  int get currentHourlyIndex {
+    if (hourlyTimes == null ||
+        hourlyTimes!.isEmpty) {
+      return 0;
+    }
+
+    final now = DateTime.now();
+
+    for (int i = 0; i < hourlyTimes!.length; i++) {
+      final parsed =
+          DateTime.tryParse(hourlyTimes![i]);
+
+      if (parsed == null) {
+        continue;
+      }
+
+      if (!parsed.isBefore(now)) {
+        return i;
+      }
+    }
+
+    return hourlyTimes!.length - 1;
+  }
+
+  // ==========================================================
+  // NASLEDUJÚCE HODINY
+  //
+  // Pomocná funkcia pre RainArrivalWidget.
+  // ==========================================================
+
+  int getForecastIndex(int hoursFromNow) {
+    final start = currentHourlyIndex;
+
+    final index =
+        start + hoursFromNow;
+
+    final maxLength =
+        hourlyTimes?.length ?? 0;
+
+    if (maxLength == 0) {
+      return 0;
+    }
+
+    if (index >= maxLength) {
+      return maxLength - 1;
+    }
+
+    return index;
+  }
+
+  // ==========================================================
+  // FORMÁTOVANIE ČASU
+  // ==========================================================
+
+  String formattedHourlyTime(int index) {
+    if (hourlyTimes == null ||
+        index < 0 ||
+        index >= hourlyTimes!.length) {
+      return '--:--';
+    }
+
+    final date =
+        DateTime.tryParse(
+      hourlyTimes![index],
+    );
+
+    if (date == null) {
+      return '--:--';
+    }
+
+    return '${date.hour.toString().padLeft(2, '0')}:'
+        '${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  // ==========================================================
+  // HODINOVÁ TEPLOTA
+  // ==========================================================
+
+  double? temperatureAt(int index) {
+    if (hourlyTemperature == null ||
+        index < 0 ||
+        index >= hourlyTemperature!.length) {
+      return null;
+    }
+
+    return hourlyTemperature![index];
+  }
+
+  // ==========================================================
+  // WEATHER CODE
+  // ==========================================================
+
+  int? weatherCodeAt(int index) {
+    if (hourlyWeatherCode == null ||
+        index < 0 ||
+        index >= hourlyWeatherCode!.length) {
+      return null;
+    }
+
+    return hourlyWeatherCode![index];
+  }
+
+  // ==========================================================
+  // PRAVDEPODOBNOSŤ ZRÁŽOK
+  // ==========================================================
+
+  int? precipitationProbabilityAt(
+    int index,
+  ) {
+    if (hourlyPrecipitationProbability ==
+            null ||
+        index < 0 ||
+        index >=
+            hourlyPrecipitationProbability!
+                .length) {
+      return null;
+    }
+
+    return hourlyPrecipitationProbability![
+        index];
+  }
+
+  // ==========================================================
+  // MNOŽSTVO ZRÁŽOK
+  // ==========================================================
+
+  double? precipitationAt(int index) {
+    if (hourlyPrecipitation == null ||
+        index < 0 ||
+        index >=
+            hourlyPrecipitation!.length) {
+      return null;
+    }
+
+    return hourlyPrecipitation![index];
+  }
+
+  // ==========================================================
+  // VIETOR
+  // ==========================================================
+
+  double? windSpeedAt(int index) {
+    if (hourlyWindSpeed == null ||
+        index < 0 ||
+        index >= hourlyWindSpeed!.length) {
+      return null;
+    }
+
+    return hourlyWindSpeed![index];
+  }
+
+  double? windDirectionAt(int index) {
+    if (hourlyWindDirection == null ||
+        index < 0 ||
+        index >=
+            hourlyWindDirection!.length) {
+      return null;
+    }
+
+    return hourlyWindDirection![index];
+  }
+
+  // ==========================================================
+  // VLHKOSŤ
+  // ==========================================================
+
+  double? humidityAt(int index) {
+    if (hourlyHumidity == null ||
+        index < 0 ||
+        index >= hourlyHumidity!.length) {
+      return null;
+    }
+
+    return hourlyHumidity![index];
+  }
+
+  // ==========================================================
+  // TLAK
+  // ==========================================================
+
+  double? pressureAt(int index) {
+    if (hourlyPressure == null ||
+        index < 0 ||
+        index >= hourlyPressure!.length) {
+      return null;
+    }
+
+    return hourlyPressure![index];
+  }
+
+  // ==========================================================
+  // NASLEDUJÚCA HODINA
+  // ==========================================================
+
+  String get nextHourLabel {
+    final index =
+        getForecastIndex(1);
+
+    return formattedHourlyTime(index);
+  }
+
+  // ==========================================================
+  // PRÍCHOD ZRÁŽOK
+  // ==========================================================
+
+  int? _calculateRainArrivalMinutes(
+    List<String>? times,
+    List<int>? probabilities,
+  ) {
+    if (times == null ||
+        probabilities == null ||
+        times.isEmpty ||
+        probabilities.isEmpty) {
+      return null;
+    }
+
+    final now = DateTime.now();
+
+    final count = [
+      times.length,
+      probabilities.length,
+    ].reduce(
+      (a, b) => a < b ? a : b,
+    );
+
+    for (int i = 0; i < count; i++) {
+      final probability =
+          probabilities[i];
+
+      final parsed =
+          DateTime.tryParse(times[i]);
+
+      if (parsed == null) {
+        continue;
+      }
+
+      // Ignorujeme minulé hodiny.
+      if (parsed.isBefore(now)) {
+        continue;
+      }
+
+      // 30 % je zatiaľ konzervatívny
+      // prah pre "možný dážď".
+      if (probability >= 30) {
+        final difference =
+            parsed.difference(now);
+
+        return difference.inMinutes < 0
+            ? 0
+            : difference.inMinutes;
+      }
+    }
+
+    return null;
+  }
+
+  // ==========================================================
+  // FROM JSON
+  // ==========================================================
+
   factory MeteoApiData.fromJson(
     Map<String, dynamic> json,
   ) {
     // ========================================================
-    // DEFAULT CURRENT
+    // CURRENT
     // ========================================================
 
     double currentTemperature = 0.0;
@@ -137,8 +417,6 @@ class MeteoApiData {
     double currentWindDirection = 0.0;
     double currentPressure = 0.0;
     int currentWeatherCode = 0;
-
-    int? rainArrivalMinutes;
 
     // ========================================================
     // HOURLY
@@ -148,7 +426,9 @@ class MeteoApiData {
     List<double>? hourlyTemperature;
     List<int>? hourlyWeatherCode;
 
-    List<int>? hourlyPrecipitationProbability;
+    List<int>?
+        hourlyPrecipitationProbability;
+
     List<double>? hourlyPrecipitation;
 
     List<double>? hourlyWindDirection;
@@ -172,31 +452,37 @@ class MeteoApiData {
     // CURRENT
     // ========================================================
 
-    final current = json['current'];
+    final current =
+        json['current'];
 
-    if (current is Map<String, dynamic>) {
+    if (current is Map) {
       currentTemperature =
-          (current['temperature_2m'] as num?)
+          (current['temperature_2m']
+                      as num?)
                   ?.toDouble() ??
               0.0;
 
       currentWindSpeed =
-          (current['wind_speed_10m'] as num?)
+          (current['wind_speed_10m']
+                      as num?)
                   ?.toDouble() ??
               0.0;
 
       currentWindDirection =
-          (current['wind_direction_10m'] as num?)
+          (current['wind_direction_10m']
+                      as num?)
                   ?.toDouble() ??
               0.0;
 
       currentPressure =
-          (current['surface_pressure'] as num?)
+          (current['surface_pressure']
+                      as num?)
                   ?.toDouble() ??
               0.0;
 
       currentWeatherCode =
-          (current['weather_code'] as num?)
+          (current['weather_code']
+                      as num?)
                   ?.toInt() ??
               0;
     }
@@ -205,9 +491,10 @@ class MeteoApiData {
     // HOURLY
     // ========================================================
 
-    final hourly = json['hourly'];
+    final hourly =
+        json['hourly'];
 
-    if (hourly is Map<String, dynamic>) {
+    if (hourly is Map) {
       // ------------------------------------------------------
       // TIME
       // ------------------------------------------------------
@@ -225,9 +512,11 @@ class MeteoApiData {
       // TEMPERATURE
       // ------------------------------------------------------
 
-      if (hourly['temperature_2m'] is List) {
+      if (hourly['temperature_2m']
+          is List) {
         hourlyTemperature =
-            (hourly['temperature_2m'] as List)
+            (hourly['temperature_2m']
+                    as List)
                 .whereType<num>()
                 .map(
                   (e) => e.toDouble(),
@@ -239,9 +528,11 @@ class MeteoApiData {
       // WEATHER CODE
       // ------------------------------------------------------
 
-      if (hourly['weather_code'] is List) {
+      if (hourly['weather_code']
+          is List) {
         hourlyWeatherCode =
-            (hourly['weather_code'] as List)
+            (hourly['weather_code']
+                    as List)
                 .whereType<num>()
                 .map(
                   (e) => e.toInt(),
@@ -253,67 +544,29 @@ class MeteoApiData {
       // PRECIPITATION PROBABILITY
       // ------------------------------------------------------
 
-      if (hourly['precipitation_probability']
+      if (hourly[
+              'precipitation_probability']
           is List) {
         hourlyPrecipitationProbability =
-            (hourly['precipitation_probability']
-                    as List)
+            (hourly[
+                    'precipitation_probability']
+                as List)
                 .whereType<num>()
                 .map(
                   (e) => e.toInt(),
                 )
                 .toList();
-
-        // ----------------------------------------------------
-        // ODHAD PRÍCHODU ZRÁŽOK
-        // ----------------------------------------------------
-
-        if (hourlyTimes != null) {
-          final now = DateTime.now();
-
-          final count = [
-            hourlyTimes!.length,
-            hourlyPrecipitationProbability!.length,
-          ].reduce(
-            (a, b) => a < b ? a : b,
-          );
-
-          for (int i = 0; i < count; i++) {
-            final probability =
-                hourlyPrecipitationProbability![i];
-
-            if (probability > 30) {
-              final parsed =
-                  DateTime.tryParse(
-                hourlyTimes![i],
-              );
-
-              if (parsed != null) {
-                final difference =
-                    parsed.difference(now);
-
-                rainArrivalMinutes =
-                    difference.inMinutes < 0
-                        ? 0
-                        : difference.inMinutes;
-              } else {
-                rainArrivalMinutes =
-                    i * 60;
-              }
-
-              break;
-            }
-          }
-        }
       }
 
       // ------------------------------------------------------
       // PRECIPITATION
       // ------------------------------------------------------
 
-      if (hourly['precipitation'] is List) {
+      if (hourly['precipitation']
+          is List) {
         hourlyPrecipitation =
-            (hourly['precipitation'] as List)
+            (hourly['precipitation']
+                    as List)
                 .whereType<num>()
                 .map(
                   (e) => e.toDouble(),
@@ -325,9 +578,13 @@ class MeteoApiData {
       // WIND DIRECTION
       // ------------------------------------------------------
 
-      if (hourly['wind_direction_10m'] is List) {
+      if (hourly[
+              'wind_direction_10m']
+          is List) {
         hourlyWindDirection =
-            (hourly['wind_direction_10m'] as List)
+            (hourly[
+                    'wind_direction_10m']
+                as List)
                 .whereType<num>()
                 .map(
                   (e) => e.toDouble(),
@@ -339,9 +596,13 @@ class MeteoApiData {
       // WIND SPEED
       // ------------------------------------------------------
 
-      if (hourly['wind_speed_10m'] is List) {
+      if (hourly[
+              'wind_speed_10m']
+          is List) {
         hourlyWindSpeed =
-            (hourly['wind_speed_10m'] as List)
+            (hourly[
+                    'wind_speed_10m']
+                as List)
                 .whereType<num>()
                 .map(
                   (e) => e.toDouble(),
@@ -353,9 +614,13 @@ class MeteoApiData {
       // HUMIDITY
       // ------------------------------------------------------
 
-      if (hourly['relative_humidity_2m'] is List) {
+      if (hourly[
+              'relative_humidity_2m']
+          is List) {
         hourlyHumidity =
-            (hourly['relative_humidity_2m'] as List)
+            (hourly[
+                    'relative_humidity_2m']
+                as List)
                 .whereType<num>()
                 .map(
                   (e) => e.toDouble(),
@@ -367,9 +632,13 @@ class MeteoApiData {
       // PRESSURE
       // ------------------------------------------------------
 
-      if (hourly['surface_pressure'] is List) {
+      if (hourly[
+              'surface_pressure']
+          is List) {
         hourlyPressure =
-            (hourly['surface_pressure'] as List)
+            (hourly[
+                    'surface_pressure']
+                as List)
                 .whereType<num>()
                 .map(
                   (e) => e.toDouble(),
@@ -382,9 +651,10 @@ class MeteoApiData {
     // DAILY
     // ========================================================
 
-    final daily = json['daily'];
+    final daily =
+        json['daily'];
 
-    if (daily is Map<String, dynamic>) {
+    if (daily is Map) {
       // ------------------------------------------------------
       // TIME
       // ------------------------------------------------------
@@ -402,9 +672,13 @@ class MeteoApiData {
       // MAX
       // ------------------------------------------------------
 
-      if (daily['temperature_2m_max'] is List) {
+      if (daily[
+              'temperature_2m_max']
+          is List) {
         dailyTemperatureMax =
-            (daily['temperature_2m_max'] as List)
+            (daily[
+                    'temperature_2m_max']
+                as List)
                 .whereType<num>()
                 .map(
                   (e) => e.toDouble(),
@@ -416,9 +690,13 @@ class MeteoApiData {
       // MIN
       // ------------------------------------------------------
 
-      if (daily['temperature_2m_min'] is List) {
+      if (daily[
+              'temperature_2m_min']
+          is List) {
         dailyTemperatureMin =
-            (daily['temperature_2m_min'] as List)
+            (daily[
+                    'temperature_2m_min']
+                as List)
                 .whereType<num>()
                 .map(
                   (e) => e.toDouble(),
@@ -430,7 +708,8 @@ class MeteoApiData {
       // WEATHER CODE
       // ------------------------------------------------------
 
-      if (daily['weather_code'] is List) {
+      if (daily['weather_code']
+          is List) {
         dailyWeatherCode =
             (daily['weather_code'] as List)
                 .whereType<num>()
@@ -444,7 +723,8 @@ class MeteoApiData {
       // SUNRISE
       // ------------------------------------------------------
 
-      if (daily['sunrise'] is List) {
+      if (daily['sunrise']
+          is List) {
         dailySunrise =
             (daily['sunrise'] as List)
                 .map(
@@ -457,7 +737,8 @@ class MeteoApiData {
       // SUNSET
       // ------------------------------------------------------
 
-      if (daily['sunset'] is List) {
+      if (daily['sunset']
+          is List) {
         dailySunset =
             (daily['sunset'] as List)
                 .map(
@@ -468,67 +749,63 @@ class MeteoApiData {
     }
 
     // ========================================================
+    // RAIN ARRIVAL
+    // ========================================================
+
+    final rainArrivalMinutes =
+        MeteoApiData._calculateRainArrivalStatic(
+      hourlyTimes,
+      hourlyPrecipitationProbability,
+    );
+
+    // ========================================================
     // RETURN
     // ========================================================
 
     return MeteoApiData(
       currentTemperature:
           currentTemperature,
-
       currentWindSpeed:
           currentWindSpeed,
-
       currentWindDirection:
           currentWindDirection,
-
       currentPressure:
           currentPressure,
-
       currentWeatherCode:
           currentWeatherCode,
 
       hourlyTimes:
           hourlyTimes,
-
       hourlyTemperature:
           hourlyTemperature,
-
       hourlyWeatherCode:
           hourlyWeatherCode,
 
       hourlyPrecipitationProbability:
           hourlyPrecipitationProbability,
-
       hourlyPrecipitation:
           hourlyPrecipitation,
 
       hourlyWindDirection:
           hourlyWindDirection,
-
       hourlyWindSpeed:
           hourlyWindSpeed,
 
       hourlyHumidity:
           hourlyHumidity,
-
       hourlyPressure:
           hourlyPressure,
 
       dailyTimes:
           dailyTimes,
-
       dailyTemperatureMax:
           dailyTemperatureMax,
-
       dailyTemperatureMin:
           dailyTemperatureMin,
-
       dailyWeatherCode:
           dailyWeatherCode,
-
       dailySunrise:
           dailySunrise,
-
       dailySunset:
           dailySunset,
 
@@ -536,7 +813,61 @@ class MeteoApiData {
           rainArrivalMinutes,
     );
   }
+
+  // ==========================================================
+  // STATIC RAIN ARRIVAL
+  // ==========================================================
+
+  static int?
+      _calculateRainArrivalStatic(
+    List<String>? times,
+    List<int>? probabilities,
+  ) {
+    if (times == null ||
+        probabilities == null ||
+        times.isEmpty ||
+        probabilities.isEmpty) {
+      return null;
+    }
+
+    final now = DateTime.now();
+
+    final count = [
+      times.length,
+      probabilities.length,
+    ].reduce(
+      (a, b) => a < b ? a : b,
+    );
+
+    for (int i = 0; i < count; i++) {
+      final parsed =
+          DateTime.tryParse(times[i]);
+
+      if (parsed == null) {
+        continue;
+      }
+
+      if (parsed.isBefore(now)) {
+        continue;
+      }
+
+      if (probabilities[i] >= 30) {
+        final difference =
+            parsed.difference(now);
+
+        return difference.inMinutes < 0
+            ? 0
+            : difference.inMinutes;
+      }
+    }
+
+    return null;
+  }
 }
+
+// ============================================================
+// LOCATION PRESET
+// ============================================================
 
 class LocationPreset {
   final String name;
