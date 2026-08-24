@@ -25,7 +25,6 @@ class RainArrivalWidget extends StatelessWidget {
     }
 
     if (code == 1 || code == 2) {
-      // partly_cloudy_day_rounded vo Flutter 3.19.6 nie je.
       return Icons.cloud_queue_rounded;
     }
 
@@ -110,7 +109,7 @@ class RainArrivalWidget extends StatelessWidget {
   }
 
   // ==========================================================
-  // DEŇ
+  // DAY
   // ==========================================================
 
   String _dayName(String date) {
@@ -134,20 +133,60 @@ class RainArrivalWidget extends StatelessWidget {
   }
 
   // ==========================================================
-  // ČAS
+  // TIME
   // ==========================================================
 
   String _formatTime(String value) {
+    final parsed = DateTime.tryParse(value);
+
+    if (parsed != null) {
+      return '${parsed.hour.toString().padLeft(2, '0')}:'
+          '${parsed.minute.toString().padLeft(2, '0')}';
+    }
+
     if (value.contains('T')) {
       final parts = value.split('T');
 
-      if (parts.length > 1 &&
-          parts[1].length >= 5) {
+      if (parts.length > 1 && parts[1].length >= 5) {
         return parts[1].substring(0, 5);
       }
     }
 
     return value;
+  }
+
+  // ==========================================================
+  // NÁJDEME AKTUÁLNU HODINU
+  //
+  // Dôležité:
+  // Open-Meteo môže vrátiť forecast od 00:00.
+  // Preto NESMIEME automaticky zobrazovať index 0.
+  // Nájdeme prvú hodinu >= aktuálnemu času.
+  // ==========================================================
+
+  int _findCurrentHourIndex(MeteoApiData data) {
+    if (data.hourlyTimes == null ||
+        data.hourlyTimes!.isEmpty) {
+      return 0;
+    }
+
+    final now = DateTime.now();
+
+    for (int i = 0; i < data.hourlyTimes!.length; i++) {
+      final parsed = DateTime.tryParse(
+        data.hourlyTimes![i],
+      );
+
+      if (parsed == null) {
+        continue;
+      }
+
+      if (!parsed.isBefore(now)) {
+        return i;
+      }
+    }
+
+    return data.hourlyTimes!.length - 1;
   }
 
   // ==========================================================
@@ -166,8 +205,7 @@ class RainArrivalWidget extends StatelessWidget {
               Color(0xFF1E293B),
             ],
           ),
-          borderRadius:
-              BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(22),
         ),
         child: Column(
           children: [
@@ -203,12 +241,6 @@ class RainArrivalWidget extends StatelessWidget {
 
     final data = meteoData!;
 
-    final temperature =
-        data.currentTemperature;
-
-    final weatherCode =
-        data.currentWeatherCode;
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -222,15 +254,12 @@ class RainArrivalWidget extends StatelessWidget {
             Color(0xFF1E293B),
           ],
         ),
-        borderRadius:
-            BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color:
-                Colors.black.withOpacity(0.25),
+            color: Colors.black.withOpacity(0.25),
             blurRadius: 16,
-            offset:
-                const Offset(0, 8),
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -244,35 +273,26 @@ class RainArrivalWidget extends StatelessWidget {
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 11,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                     letterSpacing: 1.2,
                   ),
                 ),
               ),
               IconButton(
-                onPressed:
-                    isLoading
-                        ? null
-                        : onRefresh,
-                tooltip:
-                    'Obnoviť počasie',
+                onPressed: isLoading ? null : onRefresh,
+                tooltip: 'Obnoviť počasie',
                 icon: isLoading
                     ? const SizedBox(
                         width: 19,
                         height: 19,
-                        child:
-                            CircularProgressIndicator(
+                        child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color:
-                              Colors.white,
+                          color: Colors.white,
                         ),
                       )
                     : const Icon(
-                        Icons
-                            .refresh_rounded,
-                        color:
-                            Colors.white,
+                        Icons.refresh_rounded,
+                        color: Colors.white,
                         size: 22,
                       ),
               ),
@@ -285,7 +305,7 @@ class RainArrivalWidget extends StatelessWidget {
             children: [
               Icon(
                 _weatherIcon(
-                  weatherCode,
+                  data.currentWeatherCode,
                 ),
                 color: Colors.white,
                 size: 64,
@@ -303,31 +323,21 @@ class RainArrivalWidget extends StatelessWidget {
                           CrossAxisAlignment.start,
                       children: [
                         Text(
-                          temperature
-                              .toStringAsFixed(
-                            0,
-                          ),
-                          style:
-                              const TextStyle(
-                            color:
-                                Colors.white,
+                          data.currentTemperature
+                              .toStringAsFixed(0),
+                          style: const TextStyle(
+                            color: Colors.white,
                             fontSize: 58,
                             height: 0.95,
-                            fontWeight:
-                                FontWeight.w300,
+                            fontWeight: FontWeight.w300,
                           ),
                         ),
                         const Padding(
-                          padding:
-                              EdgeInsets.only(
-                            top: 4,
-                          ),
+                          padding: EdgeInsets.only(top: 4),
                           child: Text(
                             '°C',
-                            style:
-                                TextStyle(
-                              color:
-                                  Colors.white70,
+                            style: TextStyle(
+                              color: Colors.white70,
                               fontSize: 20,
                             ),
                           ),
@@ -335,21 +345,16 @@ class RainArrivalWidget extends StatelessWidget {
                       ],
                     ),
 
-                    const SizedBox(
-                      height: 5,
-                    ),
+                    const SizedBox(height: 5),
 
                     Text(
                       _weatherText(
-                        weatherCode,
+                        data.currentWeatherCode,
                       ),
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.white,
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 16,
-                        fontWeight:
-                            FontWeight.w600,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -361,17 +366,12 @@ class RainArrivalWidget extends StatelessWidget {
           const SizedBox(height: 20),
 
           Container(
-            padding:
-                const EdgeInsets.symmetric(
+            padding: const EdgeInsets.symmetric(
               vertical: 13,
             ),
             decoration: BoxDecoration(
-              color: Colors.white
-                  .withOpacity(0.10),
-              borderRadius:
-                  BorderRadius.circular(
-                15,
-              ),
+              color: Colors.white.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(15),
             ),
             child: Row(
               children: [
@@ -432,8 +432,7 @@ class RainArrivalWidget extends StatelessWidget {
           style: const TextStyle(
             color: Colors.white,
             fontSize: 13,
-            fontWeight:
-                FontWeight.bold,
+            fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 2),
@@ -474,23 +473,16 @@ class RainArrivalWidget extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final max =
-        data.dailyTemperatureMax!.first;
-
-    final min =
-        data.dailyTemperatureMin!.first;
-
-    final code =
-        data.dailyWeatherCode!.first;
+    final max = data.dailyTemperatureMax!.first;
+    final min = data.dailyTemperatureMin!.first;
+    final code = data.dailyWeatherCode!.first;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:
-            const Color(0xFF1E293B),
-        borderRadius:
-            BorderRadius.circular(18),
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: Colors.white12,
         ),
@@ -515,8 +507,7 @@ class RainArrivalWidget extends StatelessWidget {
                   style: TextStyle(
                     color: Colors.white54,
                     fontSize: 10,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                     letterSpacing: 1,
                   ),
                 ),
@@ -526,8 +517,7 @@ class RainArrivalWidget extends StatelessWidget {
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 14,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
@@ -539,8 +529,7 @@ class RainArrivalWidget extends StatelessWidget {
             style: const TextStyle(
               color: Colors.white,
               fontSize: 22,
-              fontWeight:
-                  FontWeight.bold,
+              fontWeight: FontWeight.bold,
             ),
           ),
 
@@ -560,6 +549,10 @@ class RainArrivalWidget extends StatelessWidget {
 
   // ==========================================================
   // HOURLY
+  //
+  // OPRAVENÉ:
+  // zobrazujeme od aktuálnej hodiny,
+  // nie od indexu 0.
   // ==========================================================
 
   Widget _buildHourly() {
@@ -583,17 +576,22 @@ class RainArrivalWidget extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final visible =
-        count > 8 ? 8 : count;
+    final startIndex = _findCurrentHourIndex(data);
+
+    final remaining = count - startIndex;
+
+    if (remaining <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    final visible = remaining > 10 ? 10 : remaining;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:
-            const Color(0xFF1E293B),
-        borderRadius:
-            BorderRadius.circular(18),
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: Colors.white12,
         ),
@@ -602,33 +600,43 @@ class RainArrivalWidget extends StatelessWidget {
         crossAxisAlignment:
             CrossAxisAlignment.start,
         children: [
-          const Text(
-            'NAJBLIŽŠIE HODINY',
-            style: TextStyle(
-              color: Colors.white54,
-              fontSize: 10,
-              fontWeight:
-                  FontWeight.bold,
-              letterSpacing: 1,
-            ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'NAJBLIŽŠIE HODINY',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ),
+
+              Text(
+                'odteraz',
+                style: TextStyle(
+                  color: Colors.blueAccent.shade100,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 12),
 
           SizedBox(
-            height: 105,
-            child:
-                ListView.separated(
-              scrollDirection:
-                  Axis.horizontal,
+            height: 118,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
               itemCount: visible,
-              separatorBuilder:
-                  (_, __) =>
-                      const SizedBox(
-                width: 8,
-              ),
-              itemBuilder:
-                  (context, index) {
+              separatorBuilder: (_, __) =>
+                  const SizedBox(width: 8),
+              itemBuilder: (context, position) {
+                final index = startIndex + position;
+
                 final probability =
                     data.hourlyPrecipitationProbability !=
                                 null &&
@@ -640,99 +648,106 @@ class RainArrivalWidget extends StatelessWidget {
                             .hourlyPrecipitationProbability![index]
                         : 0;
 
-                final code =
-                    data.hourlyWeatherCode![index];
-
                 final precipitation =
-                    data.hourlyPrecipitation !=
-                                null &&
-                            data.hourlyPrecipitation!
-                                    .length >
+                    data.hourlyPrecipitation != null &&
+                            data.hourlyPrecipitation!.length >
                                 index
                         ? data.hourlyPrecipitation![index]
                         : 0.0;
 
+                final code =
+                    data.hourlyWeatherCode![index];
+
+                final temperature =
+                    data.hourlyTemperature![index];
+
+                final parsedTime =
+                    DateTime.tryParse(
+                  data.hourlyTimes![index],
+                );
+
+                final isNow = position == 0;
+
                 return Container(
-                  width: 72,
-                  padding:
-                      const EdgeInsets.all(
-                    7,
-                  ),
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        const Color(
-                      0xFF0F172A,
-                    ),
+                  width: 76,
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: isNow
+                        ? const Color(0xFF1D4ED8)
+                        : const Color(0xFF0F172A),
                     borderRadius:
-                        BorderRadius.circular(
-                      12,
+                        BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isNow
+                          ? Colors.blueAccent
+                          : Colors.white10,
                     ),
                   ),
                   child: Column(
                     mainAxisAlignment:
-                        MainAxisAlignment
-                            .center,
+                        MainAxisAlignment.center,
                     children: [
                       Text(
-                        _formatTime(
-                          data.hourlyTimes![
-                              index],
-                        ),
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.white60,
+                        isNow
+                            ? 'TERAZ'
+                            : _formatTime(
+                                data.hourlyTimes![index],
+                              ),
+                        style: TextStyle(
+                          color: isNow
+                              ? Colors.white
+                              : Colors.white60,
                           fontSize: 10,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
 
-                      const SizedBox(
-                        height: 5,
-                      ),
+                      if (parsedTime != null &&
+                          position > 0)
+                        Text(
+                          _dayName(
+                            parsedTime
+                                .toIso8601String(),
+                          ),
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 7,
+                          ),
+                        ),
+
+                      const SizedBox(height: 4),
 
                       Icon(
                         _weatherIcon(code),
-                        color:
-                            Colors.white,
+                        color: Colors.white,
                         size: 22,
                       ),
 
-                      const SizedBox(
-                        height: 4,
-                      ),
+                      const SizedBox(height: 4),
 
                       Text(
-                        '${data.hourlyTemperature![index].toStringAsFixed(0)}°',
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.white,
+                        '${temperature.toStringAsFixed(0)}°',
+                        style: const TextStyle(
+                          color: Colors.white,
                           fontSize: 13,
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
 
                       if (probability > 20)
                         Text(
-                          '$probability%',
-                          style:
-                              const TextStyle(
-                            color: Colors
-                                .lightBlueAccent,
+                          '$probability %',
+                          style: const TextStyle(
+                            color: Colors.lightBlueAccent,
                             fontSize: 9,
                           ),
                         ),
 
-                      if (precipitation >
-                          0.0)
+                      if (precipitation > 0.0)
                         Text(
                           '${precipitation.toStringAsFixed(1)} mm',
-                          style:
-                              const TextStyle(
-                            color:
-                                Colors.white54,
+                          style: const TextStyle(
+                            color: Colors.white54,
                             fontSize: 8,
                           ),
                         ),
@@ -756,23 +771,18 @@ class RainArrivalWidget extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onOpenMap,
-        borderRadius:
-            BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
           width: double.infinity,
-          padding:
-              const EdgeInsets.all(16),
-          decoration:
-              BoxDecoration(
-            gradient:
-                const LinearGradient(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
               colors: [
                 Color(0xFF0F4C81),
                 Color(0xFF172554),
               ],
             ),
-            borderRadius:
-                BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: Colors.white12,
             ),
@@ -780,21 +790,14 @@ class RainArrivalWidget extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets.all(
-                  10,
-                ),
-                decoration:
-                    BoxDecoration(
-                  color: Colors.white
-                      .withOpacity(0.10),
-                  shape:
-                      BoxShape.circle,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.10),
+                  shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.public_rounded,
-                  color:
-                      Colors.white,
+                  color: Colors.white,
                   size: 25,
                 ),
               ),
@@ -804,25 +807,21 @@ class RainArrivalWidget extends StatelessWidget {
               const Expanded(
                 child: Column(
                   crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
+                      CrossAxisAlignment.start,
                   children: [
                     Text(
                       'RADAR A VIETOR',
                       style: TextStyle(
-                        color:
-                            Colors.white,
+                        color: Colors.white,
                         fontSize: 13,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                     SizedBox(height: 3),
                     Text(
                       'Pozrieť aktuálnu situáciu na mape',
                       style: TextStyle(
-                        color:
-                            Colors.white60,
+                        color: Colors.white60,
                         fontSize: 11,
                       ),
                     ),
@@ -831,10 +830,8 @@ class RainArrivalWidget extends StatelessWidget {
               ),
 
               const Icon(
-                Icons
-                    .chevron_right_rounded,
-                color:
-                    Colors.white70,
+                Icons.chevron_right_rounded,
+                color: Colors.white70,
               ),
             ],
           ),
@@ -850,8 +847,7 @@ class RainArrivalWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      physics:
-          const BouncingScrollPhysics(),
+      physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment:
             CrossAxisAlignment.start,
