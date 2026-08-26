@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 import '../models/meteo_data.dart';
+import 'ecmwf_service.dart';
 
 class WeatherIntelligenceResult {
   final String title;
@@ -20,7 +21,6 @@ class WeatherIntelligenceResult {
 
   final double? radarDistanceKm;
   final double? lightningDistanceKm;
-
   final int? rainProbability;
   final double? precipitation;
 
@@ -55,6 +55,9 @@ class WeatherIntelligenceResult {
 class WeatherIntelligenceService {
   static const String _openMeteo =
       'https://api.open-meteo.com/v1/forecast';
+
+  final EcmwfService _ecmwfService =
+      EcmwfService();
 
   Future<WeatherIntelligenceResult> analyze({
     required double lat,
@@ -112,22 +115,21 @@ class WeatherIntelligenceService {
           await http.get(uri);
 
       if (response.statusCode == 200) {
-        final data =
+        final Map<String, dynamic> data =
             jsonDecode(response.body)
                 as Map<String, dynamic>;
 
-        final current =
+        final Map<String, dynamic>? current =
             data['current']
                 as Map<String, dynamic>?;
 
-        final hourly =
+        final Map<String, dynamic>? hourly =
             data['hourly']
                 as Map<String, dynamic>?;
 
         if (current != null) {
           precipitation =
-              (current['precipitation']
-                          as num?)
+              (current['precipitation'] as num?)
                       ?.toDouble() ??
                   0.0;
 
@@ -147,7 +149,7 @@ class WeatherIntelligenceService {
         }
 
         if (hourly != null) {
-          final probabilities =
+          final List<int> probabilities =
               (hourly[
                           'precipitation_probability']
                       as List?)
@@ -158,7 +160,7 @@ class WeatherIntelligenceService {
                   .toList() ??
               [];
 
-          final precipitations =
+          final List<double> precipitations =
               (hourly[
                           'precipitation']
                       as List?)
@@ -180,11 +182,9 @@ class WeatherIntelligenceService {
                 6,
               );
 
-          for (
-            int i = 0;
-            i < lookAhead;
-            i++
-          ) {
+          for (int i = 0;
+              i < lookAhead;
+              i++) {
             final int probability =
                 probabilities[i];
 
@@ -206,18 +206,18 @@ class WeatherIntelligenceService {
         );
 
         if (rainLikelySoon) {
-          score += 0.20;
+          score += 0.12;
 
           evidence.add(
-            'Numerický model očakáva zrážky v blízkom časovom horizonte.',
+            'Open-Meteo očakáva zrážky v blízkom časovom horizonte.',
           );
         }
 
         if (rainProbability >= 60) {
-          score += 0.15;
+          score += 0.10;
 
           evidence.add(
-            'Pravdepodobnosť zrážok je $rainProbability %.',
+            'Open-Meteo uvádza pravdepodobnosť zrážok $rainProbability %.',
           );
         }
 
@@ -225,7 +225,7 @@ class WeatherIntelligenceService {
           score += 0.15;
 
           evidence.add(
-            'Model už uvádza aktuálne zrážky.',
+            'Open-Meteo už uvádza aktuálne zrážky.',
           );
         }
       } else {
@@ -273,7 +273,114 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 3. BAROMETER
+    // 3. ECMWF IFS HRES 9 KM
+    // ==========================================================
+
+    EcmwfData? ecmwfData;
+
+    try {
+      ecmwfData =
+          await _ecmwfService.getForecast(
+        latitude: lat,
+        longitude: lng,
+      );
+
+      if (ecmwfData != null) {
+        final bool ecmwfRain =
+            ecmwfData.rainExpectedNext6Hours;
+
+        final double ecmwfMaxRain =
+            ecmwfData.maxPrecipitationNext6Hours;
+
+        final int? ecmwfRainHour =
+            ecmwfData.firstRainHourIndex;
+
+        print(
+          '================================================',
+        );
+        print(
+          'ECMWF IFS HRES 9 KM',
+        );
+        print(
+          'Current precipitation: '
+          '${ecmwfData.currentPrecipitation} mm',
+        );
+        print(
+          'Max precipitation next 6h: '
+          '$ecmwfMaxRain mm',
+        );
+        print(
+          'Rain expected next 6h: '
+          '$ecmwfRain',
+        );
+        print(
+          'First rain hour index: '
+          '$ecmwfRainHour',
+        );
+        print(
+          '================================================',
+        );
+
+        evidence.add(
+          'ECMWF IFS HRES 9 km bol načítaný.',
+        );
+
+        if (ecmwfRain) {
+          evidence.add(
+            'ECMWF očakáva merateľné zrážky v najbližších 6 hodinách.',
+          );
+
+          // ECMWF a Open-Meteo sa zhodujú.
+          if (rainLikelySoon) {
+            score += 0.10;
+
+            evidence.add(
+              'ECMWF a Open-Meteo sa zhodujú na riziku zrážok.',
+            );
+          }
+        } else {
+          evidence.add(
+            'ECMWF momentálne nepredpokladá merateľné zrážky v najbližších 6 hodinách.',
+          );
+
+          // Ak Open-Meteo hlási dážď, ale ECMWF nie,
+          // nezvyšujeme skóre. Práve naopak, upozorníme
+          // na rozpor medzi modelmi.
+          if (rainLikelySoon) {
+            score -= 0.06;
+
+            evidence.add(
+              'ECMWF a Open-Meteo sa v zrážkach rozchádzajú.',
+            );
+          }
+        }
+
+        // Ak ECMWF očakáva výraznejšie zrážky,
+        // pridáme menší signál.
+        if (ecmwfMaxRain >= 2.0) {
+          score += 0.05;
+
+          evidence.add(
+            'ECMWF očakáva výraznejšie zrážky v najbližších hodinách.',
+          );
+        }
+      } else {
+        evidence.add(
+          'ECMWF IFS momentálne neposkytol dáta.',
+        );
+      }
+    } catch (e) {
+      evidence.add(
+        'ECMWF IFS sa nepodarilo načítať.',
+      );
+
+      print(
+        'ECMWF INTELLIGENCE ERROR: $e',
+      );
+    }
+
+    // ==========================================================
+    // 4. BAROMETER
     // ==========================================================
 
     if (pressure > 0) {
@@ -303,7 +410,7 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 4. ORIENTÁCIA
+    // 5. ORIENTÁCIA
     // ==========================================================
 
     final direction =
@@ -321,7 +428,7 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 5. KAMERA – REÁLNE PIXELY
+    // 6. KAMERA – REÁLNE PIXELY
     // ==========================================================
 
     if (imageBytes != null &&
@@ -352,7 +459,7 @@ class WeatherIntelligenceService {
           'Kamera vidí málo modrej oblohy.',
         );
 
-        score += 0.08;
+        score += 0.06;
       }
 
       if (sky.cloudinessPercent >= 75) {
@@ -360,7 +467,7 @@ class WeatherIntelligenceService {
           'Obraz naznačuje výraznú oblačnosť.',
         );
 
-        score += 0.10;
+        score += 0.08;
       }
 
       if (sky.darkPercent >= 45) {
@@ -371,10 +478,9 @@ class WeatherIntelligenceService {
         score += 0.05;
       }
 
-      // tmavá + málo modrej + model očakáva zrážky
       if (sky.cloudinessPercent >= 65 &&
           rainLikelySoon) {
-        score += 0.12;
+        score += 0.10;
 
         evidence.add(
           'Obraz oblohy a meteorologický model sa navzájom podporujú.',
@@ -387,14 +493,14 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 6. INTENZÍVNE ZRÁŽKY
+    // 7. INTENZÍVNE ZRÁŽKY
     // ==========================================================
 
     if (precipitation >= 8 &&
         rainProbability >= 60) {
       stormNearby = true;
 
-      score += 0.20;
+      score += 0.15;
 
       evidence.add(
         'Model naznačuje možnosť veľmi intenzívnych zrážok.',
@@ -402,20 +508,34 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 7. NORMALIZÁCIA
+    // 8. NORMALIZÁCIA
     // ==========================================================
+
+    //
+    // DÔLEŽITÁ ZMENA:
+    //
+    // Predtým bolo:
+    //
+    //   0.40 + score
+    //
+    // To spôsobovalo, že "zhoda" mohla byť veľmi vysoká
+    // aj pri slabej modelovej podpore.
+    //
+    // Teraz začíname na 30 % a pridávame iba reálne
+    // dostupné signály.
+    //
 
     final double confidence =
         math.min(
-          0.97,
+          0.95,
           math.max(
             0.30,
-            0.40 + score,
+            0.30 + score,
           ),
         );
 
     // ==========================================================
-    // 8. HLAVNÝ ZÁVER
+    // 9. HLAVNÝ ZÁVER
     // ==========================================================
 
     String title;
@@ -437,7 +557,7 @@ class WeatherIntelligenceService {
           'Dážď sa môže blížiť';
 
       description =
-          'Meteorologický model očakáva zrážky, '
+          'Meteorologické modely naznačujú zrážky, '
           'barometer klesá a kamera zároveň '
           'nevidí úplne čistú oblohu.';
     } else if (rainLikelySoon) {
@@ -473,7 +593,7 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 9. TEXT ISTOTY
+    // 10. TEXT ISTOTY
     // ==========================================================
 
     String confidenceText;
@@ -493,7 +613,7 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 10. VÝSLEDOK
+    // 11. VÝSLEDOK
     // ==========================================================
 
     return WeatherIntelligenceResult(
@@ -531,9 +651,6 @@ class WeatherIntelligenceService {
       return SkyImageAnalysis.empty();
     }
 
-    // Zmenšíme obraz.
-    //
-    // Nepotrebujeme analyzovať milióny pixelov.
     final image =
         img.copyResize(
       decoded,
@@ -574,11 +691,6 @@ class WeatherIntelligenceService {
           dark++;
         }
 
-        // Jednoduchý indikátor modrej oblohy.
-        //
-        // Modrá:
-        // B je výraznejšia ako R
-        // a G je tiež relatívne vysoké.
         final bool isBlue =
             b > r * 1.12 &&
             b > g * 1.02 &&
@@ -592,9 +704,6 @@ class WeatherIntelligenceService {
                   .clamp(0.0, 1.0);
         }
 
-        // Sivá/biela oblačnosť.
-        //
-        // RGB kanály sú si navzájom relatívne blízke.
         final double maxChannel =
             math.max(
               r,
@@ -629,19 +738,6 @@ class WeatherIntelligenceService {
 
     final double greyPercent =
         cloudy / total * 100;
-
-    /*
-     * Oblačnosť nie je možné z fotografie
-     * určovať presne iba podľa RGB.
-     *
-     * Preto ju zámerne prezentujeme ako
-     * ODHAD, nie ako fakt.
-     *
-     * Kombinujeme:
-     * - málo modrej
-     * - sivé/biele oblasti
-     * - tmavé oblasti
-     */
 
     double cloudiness =
         100 - bluePercent;
