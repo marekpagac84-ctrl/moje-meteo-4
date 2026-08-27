@@ -37,16 +37,12 @@ class CloudClassificationResult {
 
 class CloudClassifierService {
   static const String modelPath =
-      'assets/models/cloud_classifier.tflite';
+      'assets/models/ccsn_cloud_classification_model.tflite';
 
   Interpreter? _interpreter;
 
   bool _initialized = false;
 
-  /*
-   * PORADIE TRIED JE PRESNE PODĽA MODELU
-   * Cloud Classification / CCSN.
-   */
   static const List<String> _names = [
     'Cirrus',
     'Cirrostratus',
@@ -76,14 +72,12 @@ class CloudClassifierService {
   ];
 
   Future<void> initialize() async {
-    if (_initialized &&
-        _interpreter != null) {
+    if (_initialized && _interpreter != null) {
       return;
     }
 
     try {
-      _interpreter =
-          await Interpreter.fromAsset(
+      _interpreter = await Interpreter.fromAsset(
         modelPath,
       );
 
@@ -97,41 +91,15 @@ class CloudClassifierService {
       final output =
           _interpreter!.getOutputTensor(0);
 
-      print(
-        '========================================',
-      );
-
-      print(
-        'CLOUD AI: MODEL LOADED',
-      );
-
-      print(
-        'CLOUD AI INPUT SHAPE: '
-        '${input.shape}',
-      );
-
-      print(
-        'CLOUD AI INPUT TYPE: '
-        '${input.type}',
-      );
-
-      print(
-        'CLOUD AI OUTPUT SHAPE: '
-        '${output.shape}',
-      );
-
-      print(
-        'CLOUD AI OUTPUT TYPE: '
-        '${output.type}',
-      );
-
-      print(
-        '========================================',
-      );
+      print('========================================');
+      print('CLOUD AI: MODEL LOADED');
+      print('CLOUD AI INPUT SHAPE: ${input.shape}');
+      print('CLOUD AI INPUT TYPE: ${input.type}');
+      print('CLOUD AI OUTPUT SHAPE: ${output.shape}');
+      print('CLOUD AI OUTPUT TYPE: ${output.type}');
+      print('========================================');
     } catch (e) {
-      print(
-        'CLOUD AI INIT ERROR: $e',
-      );
+      print('CLOUD AI INIT ERROR: $e');
 
       _interpreter = null;
       _initialized = false;
@@ -159,17 +127,7 @@ class CloudClassifierService {
         return null;
       }
 
-      /*
-       * MODEL:
-       *
-       * 224 x 224
-       * RGB
-       * float32
-       * 0.0 - 1.0
-       */
-
-      final resized =
-          img.copyResize(
+      final resized = img.copyResize(
         decoded,
         width: 224,
         height: 224,
@@ -177,8 +135,7 @@ class CloudClassifierService {
             img.Interpolation.linear,
       );
 
-      final input =
-          List.generate(
+      final input = List.generate(
         1,
         (_) => List.generate(
           224,
@@ -205,11 +162,8 @@ class CloudClassifierService {
           _interpreter!
               .getOutputTensor(0);
 
-      final outputShape =
-          outputTensor.shape;
-
-      final int outputSize =
-          outputShape.last;
+      final outputSize =
+          outputTensor.shape.last;
 
       final output =
           List.generate(
@@ -229,7 +183,8 @@ class CloudClassifierService {
           output[0]
               .map(
                 (value) =>
-                    (value as num).toDouble(),
+                    (value as num)
+                        .toDouble(),
               )
               .toList();
 
@@ -238,38 +193,25 @@ class CloudClassifierService {
       }
 
       int bestIndex = 0;
-
-      double bestScore =
-          scores[0];
+      double bestScore = scores[0];
 
       for (int i = 1;
           i < scores.length;
           i++) {
-        if (scores[i] >
-            bestScore) {
+        if (scores[i] > bestScore) {
           bestScore = scores[i];
           bestIndex = i;
         }
       }
 
       if (bestIndex < 0 ||
-          bestIndex >=
-              _names.length) {
+          bestIndex >= _names.length) {
         print(
-          'CLOUD AI: UNKNOWN CLASS '
-          '$bestIndex',
+          'CLOUD AI: UNKNOWN CLASS $bestIndex',
         );
 
         return null;
       }
-
-      /*
-       * Niektoré modely vracajú logits,
-       * nie pravdepodobnosti.
-       *
-       * Ak výstup nie je v rozsahu 0-1,
-       * použijeme softmax.
-       */
 
       double confidence;
 
@@ -281,8 +223,7 @@ class CloudClassifierService {
       );
 
       if (looksLikeProbabilities) {
-        confidence =
-            bestScore;
+        confidence = bestScore;
       } else {
         confidence =
             _softmax(scores)[bestIndex];
@@ -292,36 +233,22 @@ class CloudClassifierService {
           CloudClassificationResult(
         name: _names[bestIndex],
         code: _codes[bestIndex],
-        confidence: confidence.clamp(
+        confidence:
+            confidence.clamp(
           0.0,
           1.0,
         ),
       );
 
-      print(
-        '========================================',
-      );
-
-      print(
-        'CLOUD AI RESULT',
-      );
-
-      print(
-        'TYPE: ${result.name}',
-      );
-
-      print(
-        'CODE: ${result.code}',
-      );
-
+      print('========================================');
+      print('CLOUD AI RESULT');
+      print('TYPE: ${result.name}');
+      print('CODE: ${result.code}');
       print(
         'CONFIDENCE: '
         '${(result.confidence * 100).toStringAsFixed(1)}%',
       );
-
-      print(
-        '========================================',
-      );
+      print('========================================');
 
       return result;
     } catch (e) {
@@ -342,8 +269,7 @@ class CloudClassifierService {
 
     final maxValue =
         values.reduce(
-      (a, b) =>
-          a > b ? a : b,
+      (a, b) => a > b ? a : b,
     );
 
     final exponentials =
@@ -367,23 +293,12 @@ class CloudClassifierService {
 
     return exponentials
         .map(
-          (value) =>
-              value / sum,
+          (value) => value / sum,
         )
         .toList();
   }
 
-  double _exp(
-    double value,
-  ) {
-    /*
-     * Dart math.exp by proxy through
-     * a simple approximation is not ideal,
-     * therefore this branch is only used
-     * if model output isn't already
-     * probability-like.
-     */
-
+  double _exp(double value) {
     double result = 1.0;
     double term = 1.0;
 
