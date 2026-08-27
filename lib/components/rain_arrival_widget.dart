@@ -1,7 +1,18 @@
-import 'package:flutter/material.dart';
-import '../models/meteo_data.dart';
+import 'dart:async';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
-class RainArrivalWidget extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+
+import '../models/meteo_data.dart';
+import '../services/cloud_classifier_service.dart';
+import '../services/sky_context_service.dart';
+
+class RainArrivalWidget
+    extends StatefulWidget {
   final MeteoApiData? meteoData;
   final bool isLoading;
   final VoidCallback onRefresh;
@@ -15,394 +26,1117 @@ class RainArrivalWidget extends StatelessWidget {
     required this.onOpenMap,
   });
 
-  // ==========================================================
-  // WEATHER ICON
-  // ==========================================================
+  @override
+  State<RainArrivalWidget>
+      createState() =>
+          _RainArrivalWidgetState();
+}
 
-  IconData _weatherIcon(int code) {
-    if (code == 0) {
-      return Icons.wb_sunny_rounded;
-    }
+class _RainArrivalWidgetState
+    extends State<RainArrivalWidget> {
+  final SkyContextService
+      _contextService =
+      SkyContextService();
 
-    if (code == 1 || code == 2) {
-      return Icons.cloud_queue_rounded;
-    }
+  final CloudClassifierService
+      _cloudClassifier =
+      CloudClassifierService();
 
-    if (code == 3) {
-      return Icons.cloud_rounded;
-    }
+  final ImagePicker _picker =
+      ImagePicker();
 
-    if (code >= 45 && code <= 48) {
-      return Icons.foggy;
-    }
+  StreamSubscription<BarometerEvent>?
+      _barometerSub;
 
-    if (code >= 51 && code <= 57) {
-      return Icons.water_drop_rounded;
-    }
+  StreamSubscription<MagnetometerEvent>?
+      _magnetometerSub;
 
-    if (code >= 61 && code <= 67) {
-      return Icons.water_drop_rounded;
-    }
+  SkyContextResult? _context;
 
-    if (code >= 71 && code <= 77) {
-      return Icons.ac_unit_rounded;
-    }
+  Position? _position;
 
-    if (code >= 80 && code <= 82) {
-      return Icons.grain_rounded;
-    }
+  double? _devicePressure;
 
-    if (code >= 95) {
-      return Icons.thunderstorm_rounded;
-    }
+  double _heading = 0.0;
 
-    return Icons.cloud_rounded;
+  double? _altitude;
+
+  bool _loadingWeather = true;
+  bool _analyzing = false;
+
+  String? _error;
+
+  String? _cloudName;
+  String? _cloudCode;
+  double? _cloudConfidence;
+
+  Uint8List? _lastImage;
+
+  DateTime? _lastAnalysis;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _startSensors();
+    _loadContext();
   }
 
-  // ==========================================================
-  // WEATHER TEXT
-  // ==========================================================
+  @override
+  void dispose() {
+    _barometerSub?.cancel();
+    _magnetometerSub?.cancel();
 
-  String _weatherText(int code) {
-    if (code == 0) return 'Jasno';
-    if (code == 1) return 'Prevažne jasno';
-    if (code == 2) return 'Polooblačno';
-    if (code == 3) return 'Oblačno';
+    _cloudClassifier.dispose();
 
-    if (code == 45 || code == 48) {
-      return 'Hmla';
-    }
-
-    if (code >= 51 && code <= 55) {
-      return 'Mrholenie';
-    }
-
-    if (code >= 56 && code <= 57) {
-      return 'Mrznúce mrholenie';
-    }
-
-    if (code >= 61 && code <= 65) {
-      return 'Dážď';
-    }
-
-    if (code >= 66 && code <= 67) {
-      return 'Mrznúci dážď';
-    }
-
-    if (code >= 71 && code <= 77) {
-      return 'Sneženie';
-    }
-
-    if (code >= 80 && code <= 82) {
-      return 'Prehánky';
-    }
-
-    if (code == 95) {
-      return 'Búrka';
-    }
-
-    if (code >= 96) {
-      return 'Búrka s krúpami';
-    }
-
-    return 'Neznáme počasie';
+    super.dispose();
   }
 
-  // ==========================================================
-  // DAY
-  // ==========================================================
+  void _startSensors() {
+    try {
+      _barometerSub =
+          barometerEventStream().listen(
+        (event) {
+          if (!mounted) {
+            return;
+          }
 
-  String _dayName(String date) {
-    final parsed = DateTime.tryParse(date);
+          setState(() {
+            _devicePressure =
+                event.pressure;
 
-    if (parsed == null) {
-      return date;
-    }
+            _recalculateAltitude();
+          });
+        },
+        onError: (_) {},
+      );
+    } catch (_) {}
 
-    const names = [
-      'Po',
-      'Ut',
-      'St',
-      'Št',
-      'Pi',
-      'So',
-      'Ne',
-    ];
+    try {
+      _magnetometerSub =
+          magnetometerEventStream()
+              .listen(
+        (event) {
+          final double radians =
+              math.atan2(
+            event.y,
+            event.x,
+          );
 
-    return names[parsed.weekday - 1];
+          double degrees =
+              radians *
+                  180 /
+                  math.pi;
+
+          degrees =
+              (degrees + 360) %
+                  360;
+
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            _heading =
+                degrees;
+          });
+        },
+        onError: (_) {},
+      );
+    } catch (_) {}
   }
 
-  // ==========================================================
-  // TIME
-  // ==========================================================
+  Future<Position?>
+      _getPosition() async {
+    bool serviceEnabled =
+        await Geolocator
+            .isLocationServiceEnabled();
 
-  String _formatTime(String value) {
-    final parsed = DateTime.tryParse(value);
-
-    if (parsed != null) {
-      return '${parsed.hour.toString().padLeft(2, '0')}:'
-          '${parsed.minute.toString().padLeft(2, '0')}';
+    if (!serviceEnabled) {
+      throw Exception(
+        'Zapni GPS / polohu.',
+      );
     }
 
-    if (value.contains('T')) {
-      final parts = value.split('T');
+    LocationPermission permission =
+        await Geolocator
+            .checkPermission();
 
-      if (parts.length > 1 && parts[1].length >= 5) {
-        return parts[1].substring(0, 5);
+    if (permission ==
+        LocationPermission.denied) {
+      permission =
+          await Geolocator
+              .requestPermission();
+    }
+
+    if (permission ==
+            LocationPermission.denied ||
+        permission ==
+            LocationPermission
+                .deniedForever) {
+      throw Exception(
+        'Aplikácia nemá povolenie k polohe.',
+      );
+    }
+
+    return Geolocator
+        .getCurrentPosition(
+      desiredAccuracy:
+          LocationAccuracy.high,
+    );
+  }
+
+  Future<void> _loadContext() async {
+    if (mounted) {
+      setState(() {
+        _loadingWeather = true;
+        _error = null;
+      });
+    }
+
+    try {
+      final position =
+          await _getPosition();
+
+      if (position == null) {
+        throw Exception(
+          'Polohu sa nepodarilo zistiť.',
+        );
       }
-    }
 
-    return value;
-  }
-
-  // ==========================================================
-  // NÁJDEME AKTUÁLNU HODINU
-  //
-  // Dôležité:
-  // Open-Meteo môže vrátiť forecast od 00:00.
-  // Preto NESMIEME automaticky zobrazovať index 0.
-  // Nájdeme prvú hodinu >= aktuálnemu času.
-  // ==========================================================
-
-  int _findCurrentHourIndex(MeteoApiData data) {
-    if (data.hourlyTimes == null ||
-        data.hourlyTimes!.isEmpty) {
-      return 0;
-    }
-
-    final now = DateTime.now();
-
-    for (int i = 0; i < data.hourlyTimes!.length; i++) {
-      final parsed = DateTime.tryParse(
-        data.hourlyTimes![i],
+      final result =
+          await _contextService.load(
+        latitude:
+            position.latitude,
+        longitude:
+            position.longitude,
       );
 
-      if (parsed == null) {
-        continue;
+      if (!mounted) {
+        return;
       }
 
-      if (!parsed.isBefore(now)) {
-        return i;
+      setState(() {
+        _position =
+            position;
+
+        _context =
+            result;
+
+        _loadingWeather =
+            false;
+
+        _recalculateAltitude();
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
       }
+
+      setState(() {
+        _error =
+            e.toString().replaceFirst(
+                  'Exception: ',
+                  '',
+                );
+
+        _loadingWeather =
+            false;
+      });
     }
-
-    return data.hourlyTimes!.length - 1;
   }
 
-  // ==========================================================
-  // HLAVNÁ KARTA
-  // ==========================================================
+  void _recalculateAltitude() {
+    final context =
+        _context;
 
-  Widget _buildMainWeather() {
-    if (meteoData == null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [
-              Color(0xFF1E3A8A),
-              Color(0xFF1E293B),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(22),
+    if (_devicePressure != null &&
+        context != null &&
+        context.seaLevelPressure >
+            0) {
+      _altitude =
+          SkyContextService
+              .pressureAltitude(
+        pressure:
+            _devicePressure!,
+        seaLevelPressure:
+            context
+                .seaLevelPressure,
+      );
+
+      return;
+    }
+
+    if (_position != null) {
+      _altitude =
+          _position!.altitude;
+    }
+  }
+
+  Future<void> _analyzeSky()
+      async {
+    if (_analyzing) {
+      return;
+    }
+
+    setState(() {
+      _analyzing = true;
+      _error = null;
+    });
+
+    try {
+      /*
+       * JEDNA FOTO.
+       *
+       * Smer si zapamätáme tesne
+       * pred otvorením kamery.
+       */
+      final double photoHeading =
+          _heading;
+
+      final XFile? photo =
+          await _picker.pickImage(
+        source:
+            ImageSource.camera,
+        imageQuality: 88,
+        maxWidth: 1800,
+      );
+
+      if (photo == null) {
+        if (mounted) {
+          setState(() {
+            _analyzing = false;
+          });
+        }
+
+        return;
+      }
+
+      final bytes =
+          await photo.readAsBytes();
+
+      final cloud =
+          await _cloudClassifier
+              .classify(
+        bytes,
+      );
+
+      /*
+       * Po fotke obnovíme modely,
+       * aby sa AI porovnávala s čo
+       * najčerstvejšími dátami.
+       */
+      final position =
+          await _getPosition();
+
+      SkyContextResult? context =
+          _context;
+
+      if (position != null) {
+        context =
+            await _contextService.load(
+          latitude:
+              position.latitude,
+          longitude:
+              position.longitude,
+        );
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _position =
+            position ??
+                _position;
+
+        _context =
+            context;
+
+        _heading =
+            photoHeading;
+
+        _lastImage =
+            bytes;
+
+        _lastAnalysis =
+            DateTime.now();
+
+        _cloudName =
+            cloud?.name;
+
+        _cloudCode =
+            cloud?.code;
+
+        _cloudConfidence =
+            cloud?.confidence;
+
+        _analyzing = false;
+
+        _recalculateAltitude();
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _error =
+            e.toString().replaceFirst(
+                  'Exception: ',
+                  '',
+                );
+
+        _analyzing =
+            false;
+      });
+    }
+  }
+
+  bool get _isRainCloud {
+    return _cloudCode == 'Cb' ||
+        _cloudCode == 'Ns';
+  }
+
+  bool get _isConvective {
+    return _cloudCode == 'Cb';
+  }
+
+  double get _incomingDifference {
+    final context =
+        _context;
+
+    if (context == null) {
+      return 180.0;
+    }
+
+    /*
+     * windDirection znamená smer,
+     * ODKIAĽ vietor prichádza.
+     *
+     * Používame ho ako pomocný modelový
+     * odhad sektora, odkiaľ k nám môže
+     * prichádzať systém.
+     *
+     * Toto NIE JE radarová trajektória.
+     */
+    return SkyContextService
+        .circularDifference(
+      _heading,
+      context.windDirection,
+    );
+  }
+
+  String get _viewRelation {
+    final difference =
+        _incomingDifference;
+
+    if (difference <= 45) {
+      return 'POZERÁŠ SA PRIBLIŽNE SMEROM, ODKIAĽ PRICHÁDZA POČASIE';
+    }
+
+    if (difference >= 135) {
+      return 'TO, ČO SA BLÍŽI, JE PRAVDEPODOBNE ZA TEBOU';
+    }
+
+    return 'BLÍŽIACI SA SYSTÉM JE SKÔR MIMO TVOJHO PRIAMEHO POHĽADU';
+  }
+
+  String get _mainHeadline {
+    final context =
+        _context;
+
+    if (context == null) {
+      return 'AI ANALÝZA OBLOHY';
+    }
+
+    if (context.stormSignal &&
+        context.nextRainMinutes !=
+            null &&
+        context.nextRainMinutes! <
+            120) {
+      return '⛈️ NIEČO SILNEJŠIE SA BLÍŽI';
+    }
+
+    if (context.nextRainMinutes !=
+            null &&
+        context.nextRainMinutes! <=
+            60) {
+      if (_incomingDifference >=
+          135) {
+        return '🌧️ POZOR, DÁŽĎ MÔŽE PRÍSŤ ZA TEBOU';
+      }
+
+      return '🌧️ DÁŽĎ SA BLÍŽI';
+    }
+
+    if (_isConvective) {
+      return '☁️ TENTO OBLAK STOJÍ ZA POZORNOSŤ';
+    }
+
+    if (_cloudName != null) {
+      return '👁️ VIDÍM ${_cloudName!.toUpperCase()}';
+    }
+
+    return '🤖 AI ANALÝZA OBLOHY';
+  }
+
+  String get _humanSummary {
+    final context =
+        _context;
+
+    if (context == null) {
+      return 'Namier kameru na oblohu. '
+          'Porovnám to, čo vidíš, '
+          's modelmi, vetrom, tlakom '
+          'a tvojou polohou.';
+    }
+
+    final int? minutes =
+        context.nextRainMinutes;
+
+    if (_cloudName == null) {
+      if (minutes == null) {
+        return 'Modely zatiaľ nevidia '
+            'výrazný dážď v blízkom '
+            'časovom horizonte. '
+            'Odfotím oblohu a skontrolujeme, '
+            'či si atmosféra predsa len '
+            'niečo nechystá.';
+      }
+
+      return 'Najbližší modelový signál '
+          'zrážok je '
+          '${SkyContextService.formatMinutes(minutes)}. '
+          'Odfotím oblohu a skontrolujeme, '
+          'či sa tomu zhoduje aj to, čo vidíš.';
+    }
+
+    if (_isRainCloud &&
+        context.modelsAgreeOnRain) {
+      if (_incomingDifference <= 45) {
+        return 'To, čo vidíš, môže súvisieť '
+            's počasím, ktoré prichádza k tvojej '
+            'polohe. Kamera aj modely dávajú '
+            'zrážkový signál.';
+      }
+
+      if (_incomingDifference >= 135) {
+        return 'Oblak pred tebou je zaujímavý, '
+            'ale modelovaný príchod počasia je '
+            'z opačného sektora. Takže pozor: '
+            'to podstatné môže byť práve za tebou.';
+      }
+
+      return 'Kamera vidí zrážkovo významný '
+          'oblak, no modelovaný príchod počasia '
+          'je skôr zboku. Nemusí ísť o ten istý systém.';
+    }
+
+    if (_isRainCloud &&
+        !context.rainExpectedNext6Hours &&
+        !context.ecmwfRainExpected) {
+      return 'Vyzerá to hrozivo, ale modely '
+          'zatiaľ nepotvrdzujú, že tento oblak '
+          'zasiahne tvoju polohu. '
+          'Možno veľa kriku pre nič.';
+    }
+
+    if (!_isRainCloud &&
+        minutes != null &&
+        minutes <= 120) {
+      if (_incomingDifference >= 135) {
+        return 'To, čo práve fotíš, zrejme nie je '
+            'hlavný zrážkový systém. '
+            'Modely však očakávajú dážď '
+            '${SkyContextService.formatMinutes(minutes)} '
+            'a smer príchodu je skôr za tebou.';
+      }
+
+      return 'Oblak pred tebou nemusí byť '
+          'hlavný vinník. Modely však očakávajú '
+          'dážď ${SkyContextService.formatMinutes(minutes)}.';
+    }
+
+    if (context.modelsAgreeOnDry) {
+      return 'Kamera zatiaľ nevidí nič, '
+          'čo by spolu s modelmi pôsobilo '
+          'ako bezprostredná hrozba. '
+          'Atmosféra má zatiaľ relatívne pokojný deň.';
+    }
+
+    if (context.modelsDisagree) {
+      return 'Modely sa nevedia úplne dohodnúť. '
+          'Presne v takomto prípade má kamera '
+          'a lokálny tlak najväčší zmysel.';
+    }
+
+    return 'Obloha, modely a lokálne údaje '
+        'sú vyhodnotené spolu. '
+        'Momentálne tu nie je jednoznačný '
+        'signál bezprostredného dažďa.';
+  }
+
+  String get _rainTimingText {
+    final context =
+        _context;
+
+    if (context == null) {
+      return '—';
+    }
+
+    if (context.nextRainMinutes ==
+        null) {
+      return 'Najbližších ~18 h bez jasného signálu';
+    }
+
+    return SkyContextService
+        .formatMinutes(
+      context.nextRainMinutes!,
+    );
+  }
+
+  String get _rainClockText {
+    final time =
+        _context?.nextRainTime;
+
+    if (time == null) {
+      return '';
+    }
+
+    return 'okolo ${SkyContextService.formatClock(time)}';
+  }
+
+  String get _modelAgreementText {
+    final context =
+        _context;
+
+    if (context == null) {
+      return '—';
+    }
+
+    if (context.modelsAgreeOnRain) {
+      return 'Open-Meteo + ECMWF: zhodujú sa na zrážkach';
+    }
+
+    if (context.modelsAgreeOnDry) {
+      return 'Open-Meteo + ECMWF: zhodujú sa na suchšom scenári';
+    }
+
+    return 'Open-Meteo + ECMWF: rozchádzajú sa';
+  }
+
+  String get _cloudDisplay {
+    if (_cloudName == null) {
+      return 'Zatiaľ neodfotené';
+    }
+
+    final confidence =
+        _cloudConfidence;
+
+    if (confidence == null) {
+      return _cloudName!;
+    }
+
+    return '${_cloudName!} '
+        '(${_cloudCode ?? '?'}) • '
+        '${(confidence * 100).toStringAsFixed(0)} %';
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return RefreshIndicator(
+      onRefresh: () async {
+        widget.onRefresh();
+        await _loadContext();
+      },
+      child: SingleChildScrollView(
+        physics:
+            const AlwaysScrollableScrollPhysics(),
+        padding:
+            const EdgeInsets.fromLTRB(
+          14,
+          10,
+          14,
+          24,
         ),
         child: Column(
           children: [
-            const Icon(
-              Icons.cloud_off_rounded,
-              size: 46,
-              color: Colors.white54,
+            _buildHeroBanner(),
+
+            const SizedBox(
+              height: 14,
             ),
-            const SizedBox(height: 12),
-            Text(
-              isLoading
-                  ? 'Načítavam počasie...'
-                  : 'Počasie nie je dostupné',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+
+            if (_error != null)
+              _buildError(),
+
+            if (_loadingWeather)
+              const Padding(
+                padding:
+                    EdgeInsets.all(
+                  20,
+                ),
+                child:
+                    CircularProgressIndicator(),
+              )
+            else ...[
+              _buildRainCard(),
+
+              const SizedBox(
+                height: 12,
               ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Čakám na meteorologické dáta.',
-              style: TextStyle(
-                color: Colors.white60,
-                fontSize: 12,
+
+              _buildVisionCard(),
+
+              const SizedBox(
+                height: 12,
               ),
-              textAlign: TextAlign.center,
-            ),
+
+              _buildAtmosphereCard(),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              _buildModelCard(),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              _buildButtons(),
+            ],
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    final data = meteoData!;
+  Widget _buildHeroBanner() {
+    final context =
+        _context;
+
+    final bool rainy =
+        context?.rainExpectedNext6Hours ??
+            false;
+
+    final double parallax =
+        math.sin(
+              _heading *
+                  math.pi /
+                  180,
+            ) *
+            14;
 
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF2563EB),
-            Color(0xFF1E3A8A),
-            Color(0xFF1E293B),
-          ],
+      width:
+          double.infinity,
+      constraints:
+          const BoxConstraints(
+        minHeight: 260,
+      ),
+      decoration:
+          BoxDecoration(
+        borderRadius:
+            BorderRadius.circular(
+          30,
         ),
-        borderRadius: BorderRadius.circular(22),
+        gradient:
+            LinearGradient(
+          begin:
+              Alignment.topLeft,
+          end:
+              Alignment.bottomRight,
+          colors: rainy
+              ? const [
+                  Color(
+                    0xFF111827,
+                  ),
+                  Color(
+                    0xFF163A5F,
+                  ),
+                  Color(
+                    0xFF355C7D,
+                  ),
+                ]
+              : const [
+                  Color(
+                    0xFF071C36,
+                  ),
+                  Color(
+                    0xFF0E4D78,
+                  ),
+                  Color(
+                    0xFF2F80A8,
+                  ),
+                ],
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+            color:
+                Colors.black
+                    .withOpacity(
+              0.28,
+            ),
+            blurRadius:
+                24,
+            offset:
+                const Offset(
+              0,
+              14,
+            ),
           ),
         ],
       ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'AKTUÁLNE POČASIE',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
+      child: ClipRRect(
+        borderRadius:
+            BorderRadius.circular(
+          30,
+        ),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child:
+                  CustomPaint(
+                painter:
+                    _AtmospherePainter(
+                  rainy:
+                      rainy,
+                  storm:
+                      context
+                              ?.stormSignal ??
+                          false,
+                  parallax:
+                      parallax,
                 ),
               ),
-              IconButton(
-                onPressed: isLoading ? null : onRefresh,
-                tooltip: 'Obnoviť počasie',
-                icon: isLoading
-                    ? const SizedBox(
-                        width: 19,
-                        height: 19,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
+            ),
+
+            Padding(
+              padding:
+                  const EdgeInsets.all(
+                20,
+              ),
+              child:
+                  Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment
+                        .start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal:
+                              10,
+                          vertical:
+                              6,
                         ),
-                      )
-                    : const Icon(
-                        Icons.refresh_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 6),
-
-          Row(
-            children: [
-              Icon(
-                _weatherIcon(
-                  data.currentWeatherCode,
-                ),
-                color: Colors.white,
-                size: 64,
-              ),
-
-              const SizedBox(width: 16),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          data.currentTemperature
-                              .toStringAsFixed(0),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 58,
-                            height: 0.95,
-                            fontWeight: FontWeight.w300,
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              Colors.white
+                                  .withOpacity(
+                            0.13,
                           ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.only(top: 4),
-                          child: Text(
-                            '°C',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 20,
+                          borderRadius:
+                              BorderRadius.circular(
+                            99,
+                          ),
+                          border:
+                              Border.all(
+                            color:
+                                Colors.white
+                                    .withOpacity(
+                              0.16,
                             ),
                           ),
                         ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 5),
-
-                    Text(
-                      _weatherText(
-                        data.currentWeatherCode,
+                        child:
+                            const Text(
+                          'MOJE METEO • AI',
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.white70,
+                            fontSize:
+                                11,
+                            fontWeight:
+                                FontWeight.w700,
+                            letterSpacing:
+                                1.1,
+                          ),
+                        ),
                       ),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+
+                      const Spacer(),
+
+                      if (_lastAnalysis !=
+                          null)
+                        const Icon(
+                          Icons
+                              .check_circle,
+                          color:
+                              Color(
+                            0xFF7EF7C9,
+                          ),
+                          size:
+                              19,
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(
+                    height: 28,
+                  ),
+
+                  Text(
+                    _mainHeadline,
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.white,
+                      fontWeight:
+                          FontWeight.w900,
+                      fontSize:
+                          23,
+                      height:
+                          1.08,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 10,
+                  ),
+
+                  Text(
+                    _humanSummary,
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white
+                              .withOpacity(
+                        0.86,
+                      ),
+                      fontSize:
+                          14,
+                      height:
+                          1.4,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 20,
+                  ),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child:
+                            _heroStat(
+                          'DÁŽĎ',
+                          _rainTimingText,
+                          Icons
+                              .water_drop_outlined,
+                        ),
+                      ),
+
+                      const SizedBox(
+                        width: 9,
+                      ),
+
+                      Expanded(
+                        child:
+                            _heroStat(
+                          'POHĽAD',
+                          '${SkyContextService.directionName(_heading)} • ${_heading.toStringAsFixed(0)}°',
+                          Icons
+                              .explore_outlined,
+                        ),
+                      ),
+
+                      const SizedBox(
+                        width: 9,
+                      ),
+
+                      Expanded(
+                        child:
+                            _heroStat(
+                          'VÝŠKA',
+                          _altitude ==
+                                  null
+                              ? '—'
+                              : '${_altitude!.toStringAsFixed(0)} m',
+                          Icons
+                              .terrain_outlined,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(
+                    height: 16,
+                  ),
+
+                  SizedBox(
+                    width:
+                        double.infinity,
+                    child:
+                        ElevatedButton.icon(
+                      onPressed:
+                          _analyzing
+                              ? null
+                              : _analyzeSky,
+                      icon:
+                          _analyzing
+                              ? const SizedBox(
+                                  width:
+                                      18,
+                                  height:
+                                      18,
+                                  child:
+                                      CircularProgressIndicator(
+                                    strokeWidth:
+                                        2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons
+                                      .camera_alt_rounded,
+                                ),
+                      label:
+                          Text(
+                        _analyzing
+                            ? 'Analyzujem oblohu...'
+                            : 'AI ANALÝZA OBLOHY',
+                      ),
+                      style:
+                          ElevatedButton.styleFrom(
+                        minimumSize:
+                            const Size(
+                          double.infinity,
+                          52,
+                        ),
+                        backgroundColor:
+                            Colors.white,
+                        foregroundColor:
+                            const Color(
+                          0xFF08223C,
+                        ),
+                        shape:
+                            RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(
+                            18,
+                          ),
+                        ),
+                        textStyle:
+                            const TextStyle(
+                          fontWeight:
+                              FontWeight.w900,
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _heroStat(
+    String title,
+    String value,
+    IconData icon,
+  ) {
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(
+        horizontal:
+            10,
+        vertical:
+            11,
+      ),
+      decoration:
+          BoxDecoration(
+        color:
+            Colors.white
+                .withOpacity(
+          0.10,
+        ),
+        borderRadius:
+            BorderRadius.circular(
+          16,
+        ),
+        border:
+            Border.all(
+          color:
+              Colors.white
+                  .withOpacity(
+            0.11,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment
+                .start,
+        children: [
+          Icon(
+            icon,
+            color:
+                Colors.white70,
+            size:
+                16,
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(
+            height:
+                7,
+          ),
 
-          Container(
-            padding: const EdgeInsets.symmetric(
-              vertical: 13,
+          Text(
+            title,
+            style:
+                const TextStyle(
+              color:
+                  Colors.white54,
+              fontSize:
+                  9,
+              fontWeight:
+                  FontWeight.w700,
             ),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _infoItem(
-                    Icons.air_rounded,
-                    'Vietor',
-                    '${data.currentWindSpeed.toStringAsFixed(1)} km/h',
-                  ),
-                ),
+          ),
 
-                _verticalDivider(),
+          const SizedBox(
+            height:
+                3,
+          ),
 
-                Expanded(
-                  child: _infoItem(
-                    Icons.explore_rounded,
-                    'Smer',
-                    '${data.currentWindDirection.toStringAsFixed(0)}°',
-                  ),
-                ),
-
-                _verticalDivider(),
-
-                Expanded(
-                  child: _infoItem(
-                    Icons.speed_rounded,
-                    'Tlak',
-                    '${data.currentPressure.toStringAsFixed(0)} hPa',
-                  ),
-                ),
-              ],
+          Text(
+            value,
+            maxLines:
+                2,
+            overflow:
+                TextOverflow
+                    .ellipsis,
+            style:
+                const TextStyle(
+              color:
+                  Colors.white,
+              fontSize:
+                  12,
+              fontWeight:
+                  FontWeight.w800,
             ),
           ),
         ],
@@ -410,467 +1144,836 @@ class RainArrivalWidget extends StatelessWidget {
     );
   }
 
-  // ==========================================================
-  // INFO
-  // ==========================================================
+  Widget _buildRainCard() {
+    final context =
+        _context;
 
-  Widget _infoItem(
-    IconData icon,
-    String label,
-    String value,
-  ) {
-    return Column(
+    if (context == null) {
+      return const SizedBox
+          .shrink();
+    }
+
+    final probability =
+        context.nextRainProbability ??
+            context.currentRainProbability;
+
+    return _glassCard(
+      icon:
+          Icons.umbrella_rounded,
+      title:
+          'Najbližší dážď',
+      subtitle:
+          context.nextRainMinutes ==
+                  null
+              ? 'Modely zatiaľ nevidia jasný nástup zrážok.'
+              : '${_rainTimingText}${_rainClockText.isEmpty ? '' : ' • $_rainClockText'}',
+      child:
+          Column(
+        children: [
+          _dataRow(
+            'Pravdepodobnosť',
+            '$probability %',
+          ),
+
+          _dataRow(
+            'Očakávanie',
+            context
+                .precipitationDescription,
+          ),
+
+          _dataRow(
+            'Množstvo',
+            context.nextRainAmount ==
+                    null
+                ? '—'
+                : '${context.nextRainAmount!.toStringAsFixed(1)} mm/h',
+          ),
+
+          if (context.stormSignal)
+            _warningStrip(
+              'Búrkový alebo výraznejší '
+              'zrážkový signál. Toto už '
+              'nie je počasie len na okrasu.',
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVisionCard() {
+    final context =
+        _context;
+
+    return _glassCard(
+      icon:
+          Icons.visibility_rounded,
+      title:
+          'Čo vidíš',
+      subtitle:
+          _cloudDisplay,
+      child:
+          Column(
+        crossAxisAlignment:
+            CrossAxisAlignment
+                .stretch,
+        children: [
+          _dataRow(
+            'Smer kamery',
+            '${SkyContextService.longDirectionName(_heading)} '
+                '(${_heading.toStringAsFixed(0)}°)',
+          ),
+
+          if (context != null)
+            _dataRow(
+              'Sektor príchodu',
+              '${SkyContextService.longDirectionName(context.windDirection)} '
+                  '(${context.windDirection.toStringAsFixed(0)}°)',
+            ),
+
+          if (context != null &&
+              context.nextRainMinutes !=
+                  null)
+            _warningStrip(
+              _viewRelation,
+              subtle:
+                  true,
+            ),
+
+          if (_cloudName == null)
+            Padding(
+              padding:
+                  const EdgeInsets.only(
+                top:
+                    8,
+              ),
+              child:
+                  Text(
+                'Jedna fotografia stačí. '
+                'AI určí typ oblaku a '
+                'porovná ho so smerom, '
+                'modelmi a tým, čo sa '
+                'očakáva na tvojej polohe.',
+                style:
+                    TextStyle(
+                  color:
+                      Colors.white
+                          .withOpacity(
+                    0.66,
+                  ),
+                  fontSize:
+                      13,
+                  height:
+                      1.35,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAtmosphereCard() {
+    final context =
+        _context;
+
+    if (context == null) {
+      return const SizedBox
+          .shrink();
+    }
+
+    final double pressure =
+        _devicePressure ??
+            context.surfacePressure;
+
+    return _glassCard(
+      icon:
+          Icons.air_rounded,
+      title:
+          'Atmosféra okolo teba',
+      subtitle:
+          'Lokálne údaje a výškomer',
+      child:
+          Column(
+        children: [
+          _dataRow(
+            'Teplota',
+            '${context.temperature.toStringAsFixed(1)} °C',
+          ),
+
+          _dataRow(
+            'Pocitovo',
+            '${context.apparentTemperature.toStringAsFixed(1)} °C',
+          ),
+
+          _dataRow(
+            'Vlhkosť',
+            '${context.humidity.toStringAsFixed(0)} %',
+          ),
+
+          _dataRow(
+            'Tlak',
+            '${pressure.toStringAsFixed(1)} hPa',
+          ),
+
+          _dataRow(
+            'Nadmorská výška',
+            _altitude == null
+                ? '—'
+                : '${_altitude!.toStringAsFixed(0)} m',
+          ),
+
+          _dataRow(
+            'Vietor',
+            '${context.windSpeed.toStringAsFixed(1)} km/h '
+                'z ${SkyContextService.directionName(context.windDirection)}',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModelCard() {
+    final context =
+        _context;
+
+    if (context == null) {
+      return const SizedBox
+          .shrink();
+    }
+
+    return _glassCard(
+      icon:
+          Icons.psychology_alt_rounded,
+      title:
+          'Čo si myslia modely',
+      subtitle:
+          _modelAgreementText,
+      child:
+          Column(
+        children: [
+          _dataRow(
+            'Open-Meteo',
+            context.rainExpectedNext6Hours
+                ? 'zrážkový signál'
+                : 'bez výrazného signálu',
+          ),
+
+          _dataRow(
+            'ECMWF IFS',
+            context.ecmwfRainExpected
+                ? 'zrážkový signál'
+                : 'bez výrazného signálu',
+          ),
+
+          _dataRow(
+            'ECMWF max. 6 h',
+            context.ecmwfMaxRain6h ==
+                    null
+                ? '—'
+                : '${context.ecmwfMaxRain6h!.toStringAsFixed(1)} mm/h',
+          ),
+
+          if (context.modelsDisagree)
+            _warningStrip(
+              'Modely sa nezhodujú. '
+              'Práve tu je fotografia oblohy '
+              'a lokálne meranie najcennejšie.',
+              subtle:
+                  true,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildButtons() {
+    return Row(
       children: [
-        Icon(
-          icon,
-          size: 19,
-          color: Colors.white70,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child:
+              OutlinedButton.icon(
+            onPressed:
+                () async {
+              widget.onRefresh();
+              await _loadContext();
+            },
+            icon:
+                const Icon(
+              Icons.refresh_rounded,
+            ),
+            label:
+                const Text(
+              'Obnoviť',
+            ),
           ),
         ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white54,
-            fontSize: 10,
+
+        const SizedBox(
+          width:
+              10,
+        ),
+
+        Expanded(
+          child:
+              FilledButton.icon(
+            onPressed:
+                widget.onOpenMap,
+            icon:
+                const Icon(
+              Icons.radar_rounded,
+            ),
+            label:
+                const Text(
+              'Radar / mapa',
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _verticalDivider() {
+  Widget _buildError() {
     return Container(
-      height: 35,
-      width: 1,
-      color: Colors.white12,
+      width:
+          double.infinity,
+      margin:
+          const EdgeInsets.only(
+        bottom:
+            12,
+      ),
+      padding:
+          const EdgeInsets.all(
+        14,
+      ),
+      decoration:
+          BoxDecoration(
+        color:
+            Colors.red
+                .withOpacity(
+          0.10,
+        ),
+        borderRadius:
+            BorderRadius.circular(
+          18,
+        ),
+        border:
+            Border.all(
+          color:
+              Colors.redAccent
+                  .withOpacity(
+            0.25,
+          ),
+        ),
+      ),
+      child: Text(
+        _error!,
+        style:
+            const TextStyle(
+          color:
+              Colors.redAccent,
+        ),
+      ),
     );
   }
 
-  // ==========================================================
-  // DNES
-  // ==========================================================
-
-  Widget _buildToday() {
-    final data = meteoData!;
-
-    if (data.dailyTimes == null ||
-        data.dailyTimes!.isEmpty ||
-        data.dailyTemperatureMax == null ||
-        data.dailyTemperatureMax!.isEmpty ||
-        data.dailyTemperatureMin == null ||
-        data.dailyTemperatureMin!.isEmpty ||
-        data.dailyWeatherCode == null ||
-        data.dailyWeatherCode!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final max = data.dailyTemperatureMax!.first;
-    final min = data.dailyTemperatureMin!.first;
-    final code = data.dailyWeatherCode!.first;
-
+  Widget _glassCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Widget child,
+  }) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.white12,
-        ),
+      width:
+          double.infinity,
+      padding:
+          const EdgeInsets.all(
+        17,
       ),
-      child: Row(
-        children: [
-          Icon(
-            _weatherIcon(code),
-            color: Colors.amberAccent,
-            size: 34,
+      decoration:
+          BoxDecoration(
+        color:
+            const Color(
+          0xFF0E1726,
+        ),
+        borderRadius:
+            BorderRadius.circular(
+          24,
+        ),
+        border:
+            Border.all(
+          color:
+              Colors.white
+                  .withOpacity(
+            0.07,
           ),
-
-          const SizedBox(width: 13),
-
-          const Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'DNES',
-                  style: TextStyle(
-                    color: Colors.white54,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Denná predpoveď',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color:
+                Colors.black
+                    .withOpacity(
+              0.16,
             ),
-          ),
-
-          Text(
-            '${max.toStringAsFixed(0)}°',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          Text(
-            '${min.toStringAsFixed(0)}°',
-            style: const TextStyle(
-              color: Colors.white54,
-              fontSize: 16,
+            blurRadius:
+                18,
+            offset:
+                const Offset(
+              0,
+              8,
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // ==========================================================
-  // HOURLY
-  //
-  // OPRAVENÉ:
-  // zobrazujeme od aktuálnej hodiny,
-  // nie od indexu 0.
-  // ==========================================================
-
-  Widget _buildHourly() {
-    final data = meteoData!;
-
-    if (data.hourlyTimes == null ||
-        data.hourlyTemperature == null ||
-        data.hourlyWeatherCode == null) {
-      return const SizedBox.shrink();
-    }
-
-    final count = [
-      data.hourlyTimes!.length,
-      data.hourlyTemperature!.length,
-      data.hourlyWeatherCode!.length,
-    ].reduce(
-      (a, b) => a < b ? a : b,
-    );
-
-    if (count == 0) {
-      return const SizedBox.shrink();
-    }
-
-    final startIndex = _findCurrentHourIndex(data);
-
-    final remaining = count - startIndex;
-
-    if (remaining <= 0) {
-      return const SizedBox.shrink();
-    }
-
-    final visible = remaining > 10 ? 10 : remaining;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.white12,
-        ),
       ),
       child: Column(
         crossAxisAlignment:
-            CrossAxisAlignment.start,
+            CrossAxisAlignment
+                .start,
         children: [
           Row(
             children: [
-              const Expanded(
-                child: Text(
-                  'NAJBLIŽŠIE HODINY',
-                  style: TextStyle(
-                    color: Colors.white54,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-
-              Text(
-                'odteraz',
-                style: TextStyle(
-                  color: Colors.blueAccent.shade100,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          SizedBox(
-            height: 118,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: visible,
-              separatorBuilder: (_, __) =>
-                  const SizedBox(width: 8),
-              itemBuilder: (context, position) {
-                final index = startIndex + position;
-
-                final probability =
-                    data.hourlyPrecipitationProbability !=
-                                null &&
-                            data
-                                    .hourlyPrecipitationProbability!
-                                    .length >
-                                index
-                        ? data
-                            .hourlyPrecipitationProbability![index]
-                        : 0;
-
-                final precipitation =
-                    data.hourlyPrecipitation != null &&
-                            data.hourlyPrecipitation!.length >
-                                index
-                        ? data.hourlyPrecipitation![index]
-                        : 0.0;
-
-                final code =
-                    data.hourlyWeatherCode![index];
-
-                final temperature =
-                    data.hourlyTemperature![index];
-
-                final parsedTime =
-                    DateTime.tryParse(
-                  data.hourlyTimes![index],
-                );
-
-                final isNow = position == 0;
-
-                return Container(
-                  width: 76,
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    color: isNow
-                        ? const Color(0xFF1D4ED8)
-                        : const Color(0xFF0F172A),
-                    borderRadius:
-                        BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isNow
-                          ? Colors.blueAccent
-                          : Colors.white10,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment:
-                        MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        isNow
-                            ? 'TERAZ'
-                            : _formatTime(
-                                data.hourlyTimes![index],
-                              ),
-                        style: TextStyle(
-                          color: isNow
-                              ? Colors.white
-                              : Colors.white60,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      if (parsedTime != null &&
-                          position > 0)
-                        Text(
-                          _dayName(
-                            parsedTime
-                                .toIso8601String(),
-                          ),
-                          style: const TextStyle(
-                            color: Colors.white38,
-                            fontSize: 7,
-                          ),
-                        ),
-
-                      const SizedBox(height: 4),
-
-                      Icon(
-                        _weatherIcon(code),
-                        color: Colors.white,
-                        size: 22,
-                      ),
-
-                      const SizedBox(height: 4),
-
-                      Text(
-                        '${temperature.toStringAsFixed(0)}°',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      if (probability > 20)
-                        Text(
-                          '$probability %',
-                          style: const TextStyle(
-                            color: Colors.lightBlueAccent,
-                            fontSize: 9,
-                          ),
-                        ),
-
-                      if (precipitation > 0.0)
-                        Text(
-                          '${precipitation.toStringAsFixed(1)} mm',
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 8,
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==========================================================
-  // MAPA
-  // ==========================================================
-
-  Widget _buildWindyBanner() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onOpenMap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFF0F4C81),
-                Color(0xFF172554),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.white12,
-            ),
-          ),
-          child: Row(
-            children: [
               Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.10),
-                  shape: BoxShape.circle,
+                width:
+                    42,
+                height:
+                    42,
+                decoration:
+                    BoxDecoration(
+                  color:
+                      Colors.white
+                          .withOpacity(
+                    0.07,
+                  ),
+                  borderRadius:
+                      BorderRadius.circular(
+                    14,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.public_rounded,
-                  color: Colors.white,
-                  size: 25,
+                child:
+                    Icon(
+                  icon,
+                  color:
+                      const Color(
+                    0xFF86D8FF,
+                  ),
                 ),
               ),
 
-              const SizedBox(width: 12),
+              const SizedBox(
+                width:
+                    12,
+              ),
 
-              const Expanded(
-                child: Column(
+              Expanded(
+                child:
+                    Column(
                   crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      CrossAxisAlignment
+                          .start,
                   children: [
                     Text(
-                      'RADAR A VIETOR',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
+                      title,
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.white,
+                        fontSize:
+                            16,
+                        fontWeight:
+                            FontWeight.w800,
                       ),
                     ),
-                    SizedBox(height: 3),
+
+                    const SizedBox(
+                      height:
+                          2,
+                    ),
+
                     Text(
-                      'Pozrieť aktuálnu situáciu na mape',
-                      style: TextStyle(
-                        color: Colors.white60,
-                        fontSize: 11,
+                      subtitle,
+                      style:
+                          TextStyle(
+                        color:
+                            Colors.white
+                                .withOpacity(
+                          0.56,
+                        ),
+                        fontSize:
+                            12,
                       ),
                     ),
                   ],
                 ),
               ),
-
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Colors.white70,
-              ),
             ],
           ),
-        ),
+
+          const SizedBox(
+            height:
+                14,
+          ),
+
+          child,
+        ],
       ),
     );
   }
 
-  // ==========================================================
-  // BUILD
-  // ==========================================================
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      child: Column(
+  Widget _dataRow(
+    String label,
+    String value,
+  ) {
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(
+        vertical:
+            6,
+      ),
+      child: Row(
         crossAxisAlignment:
-            CrossAxisAlignment.start,
+            CrossAxisAlignment
+                .start,
         children: [
-          _buildMainWeather(),
+          Expanded(
+            child:
+                Text(
+              label,
+              style:
+                  TextStyle(
+                color:
+                    Colors.white
+                        .withOpacity(
+                  0.56,
+                ),
+                fontSize:
+                    13,
+              ),
+            ),
+          ),
 
-          const SizedBox(height: 12),
+          const SizedBox(
+            width:
+                12,
+          ),
 
-          if (meteoData != null)
-            _buildToday(),
-
-          const SizedBox(height: 12),
-
-          if (meteoData != null)
-            _buildHourly(),
-
-          const SizedBox(height: 12),
-
-          _buildWindyBanner(),
-
-          const SizedBox(height: 8),
+          Flexible(
+            child:
+                Text(
+              value,
+              textAlign:
+                  TextAlign.right,
+              style:
+                  const TextStyle(
+                color:
+                    Colors.white,
+                fontSize:
+                    13,
+                fontWeight:
+                    FontWeight.w700,
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Widget _warningStrip(
+    String text, {
+    bool subtle = false,
+  }) {
+    return Container(
+      width:
+          double.infinity,
+      margin:
+          const EdgeInsets.only(
+        top:
+            10,
+      ),
+      padding:
+          const EdgeInsets.all(
+        12,
+      ),
+      decoration:
+          BoxDecoration(
+        color: subtle
+            ? Colors.white
+                .withOpacity(
+                0.05,
+              )
+            : const Color(
+                0xFFFFB74D,
+              ).withOpacity(
+                0.12,
+              ),
+        borderRadius:
+            BorderRadius.circular(
+          14,
+        ),
+        border:
+            Border.all(
+          color: subtle
+              ? Colors.white
+                  .withOpacity(
+                  0.06,
+                )
+              : const Color(
+                  0xFFFFB74D,
+                ).withOpacity(
+                  0.22,
+                ),
+        ),
+      ),
+      child: Text(
+        text,
+        style:
+            TextStyle(
+          color: subtle
+              ? Colors.white70
+              : const Color(
+                  0xFFFFD08A,
+                ),
+          fontSize:
+              12,
+          fontWeight:
+              FontWeight.w700,
+          height:
+              1.35,
+        ),
+      ),
+    );
+  }
+}
+
+class _AtmospherePainter
+    extends CustomPainter {
+  final bool rainy;
+  final bool storm;
+  final double parallax;
+
+  const _AtmospherePainter({
+    required this.rainy,
+    required this.storm,
+    required this.parallax,
+  });
+
+  @override
+  void paint(
+    Canvas canvas,
+    Size size,
+  ) {
+    final Paint glow =
+        Paint()
+          ..shader =
+              RadialGradient(
+            colors: [
+              Colors.white.withOpacity(
+                rainy
+                    ? 0.05
+                    : 0.18,
+              ),
+              Colors.transparent,
+            ],
+          ).createShader(
+            Rect.fromCircle(
+              center:
+                  Offset(
+                size.width *
+                        0.82 +
+                    parallax,
+                size.height *
+                    0.10,
+              ),
+              radius:
+                  120,
+            ),
+          );
+
+    canvas.drawCircle(
+      Offset(
+        size.width * 0.82 +
+            parallax,
+        size.height * 0.10,
+      ),
+      120,
+      glow,
+    );
+
+    final Paint cloud =
+        Paint()
+          ..color =
+              Colors.white.withOpacity(
+            rainy
+                ? 0.055
+                : 0.09,
+          );
+
+    _drawCloud(
+      canvas,
+      Offset(
+        size.width * 0.72 +
+            parallax,
+        96,
+      ),
+      1.25,
+      cloud,
+    );
+
+    _drawCloud(
+      canvas,
+      Offset(
+        size.width * 0.18 -
+            parallax * 0.5,
+        168,
+      ),
+      0.72,
+      cloud,
+    );
+
+    if (rainy) {
+      final Paint rainPaint =
+          Paint()
+            ..color =
+                Colors.white
+                    .withOpacity(
+              0.08,
+            )
+            ..strokeWidth =
+                1.2;
+
+      for (int i = 0;
+          i < 13;
+          i++) {
+        final x =
+            (size.width /
+                    13) *
+                i;
+
+        canvas.drawLine(
+          Offset(
+            x,
+            size.height *
+                0.60,
+          ),
+          Offset(
+            x - 7,
+            size.height *
+                    0.60 +
+                30,
+          ),
+          rainPaint,
+        );
+      }
+    }
+
+    if (storm) {
+      final Paint lightning =
+          Paint()
+            ..color =
+                const Color(
+                  0xFFFFE082,
+                ).withOpacity(
+              0.24,
+            )
+            ..style =
+                PaintingStyle.stroke
+            ..strokeWidth =
+                2;
+
+      final Path path =
+          Path()
+            ..moveTo(
+              size.width * 0.82,
+              92,
+            )
+            ..lineTo(
+              size.width * 0.76,
+              128,
+            )
+            ..lineTo(
+              size.width * 0.81,
+              128,
+            )
+            ..lineTo(
+              size.width * 0.75,
+              177,
+            );
+
+      canvas.drawPath(
+        path,
+        lightning,
+      );
+    }
+  }
+
+  void _drawCloud(
+    Canvas canvas,
+    Offset center,
+    double scale,
+    Paint paint,
+  ) {
+    canvas.drawCircle(
+      Offset(
+        center.dx,
+        center.dy,
+      ),
+      34 * scale,
+      paint,
+    );
+
+    canvas.drawCircle(
+      Offset(
+        center.dx +
+            33 * scale,
+        center.dy +
+            5 * scale,
+      ),
+      26 * scale,
+      paint,
+    );
+
+    canvas.drawCircle(
+      Offset(
+        center.dx -
+            30 * scale,
+        center.dy +
+            10 * scale,
+      ),
+      23 * scale,
+      paint,
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center:
+              Offset(
+            center.dx,
+            center.dy +
+                18 * scale,
+          ),
+          width:
+              110 * scale,
+          height:
+              36 * scale,
+        ),
+        Radius.circular(
+          18 * scale,
+        ),
+      ),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(
+    covariant _AtmospherePainter
+        oldDelegate,
+  ) {
+    return oldDelegate.rainy !=
+            rainy ||
+        oldDelegate.storm !=
+            storm ||
+        oldDelegate.parallax !=
+            parallax;
   }
 }
