@@ -1,13 +1,14 @@
 import 'dart:async';
-r'dart:rmath' as math;
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sensors_plus/sensors_plus.dart';
-rr
-import '../services/cloud_classifier_service.dart';rr
+
+import '../models/meteo_data.dart';
+import '../services/cloud_classifier_service.dart';
 import '../services/sky_context_service.dart';
 import 'weather_scene_background.dart';
 
@@ -2323,7 +2324,7 @@ class _WeatherScenePainter extends CustomPainter {
     // Slnečný/mesačný disk a mäkké atmosférické svetlo.
     final celestial = Offset(
       size.width * 0.78 + parallax,
-      78 + math.sin(phase * 0.45) * 3,
+      78.0 + math.sin(phase * 0.45) * 3.0,
     );
 
     if (isNight) {
@@ -2508,8 +2509,8 @@ class _WeatherScenePainter extends CustomPainter {
         final y = size.height * 0.55 + i * 18;
         final shift = math.sin(phase * 0.35 + i) * 18;
         canvas.drawLine(
-          Offset(-20 + shift, y),
-          Offset(size.width + 20 + shift, y),
+          Offset(-20.0 + shift, y),
+          Offset(size.width + 20.0 + shift, y),
           fogPaint,
         );
       }
