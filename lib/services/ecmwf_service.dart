@@ -2,13 +2,9 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-/// Dáta z ECMWF IFS HRES 9 km.
-///
-/// ECMWF HRES neposkytuje priamo precipitation_probability.
-/// Preto pracujeme s hodinovými zrážkami a vytvárame z nich
-/// "rain signal", ktorý následne porovnávame s Open-Meteo.
 class EcmwfData {
   final List<String> times;
+
   final List<double> precipitation;
   final List<double> cloudCover;
   final List<double> temperature;
@@ -26,7 +22,6 @@ class EcmwfData {
     required this.surfacePressure,
   });
 
-  /// Aktuálne ECMWF zrážky.
   double get currentPrecipitation {
     if (precipitation.isEmpty) {
       return 0.0;
@@ -35,37 +30,40 @@ class EcmwfData {
     return precipitation.first;
   }
 
-  /// Najväčšie predpokladané zrážky v najbližších 6 hodinách.
   double get maxPrecipitationNext6Hours {
     if (precipitation.isEmpty) {
       return 0.0;
     }
 
-    final int count =
+    final count =
         precipitation.length < 6
             ? precipitation.length
             : 6;
 
     double maxValue = 0.0;
 
-    for (int i = 0; i < count; i++) {
-      if (precipitation[i] > maxValue) {
-        maxValue = precipitation[i];
+    for (int i = 0;
+        i < count;
+        i++) {
+      if (precipitation[i] >
+          maxValue) {
+        maxValue =
+            precipitation[i];
       }
     }
 
     return maxValue;
   }
 
-  /// Sú v najbližších 6 hodinách podľa ECMWF očakávané
-  /// merateľné zrážky?
   bool get rainExpectedNext6Hours {
-    final int count =
+    final count =
         precipitation.length < 6
             ? precipitation.length
             : 6;
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0;
+        i < count;
+        i++) {
       if (precipitation[i] >= 0.1) {
         return true;
       }
@@ -74,15 +72,15 @@ class EcmwfData {
     return false;
   }
 
-  /// Najbližšia hodina, v ktorej ECMWF predpokladá
-  /// aspoň 0.1 mm zrážok.
   int? get firstRainHourIndex {
-    final int count =
+    final count =
         precipitation.length < 6
             ? precipitation.length
             : 6;
 
-    for (int i = 0; i < count; i++) {
+    for (int i = 0;
+        i < count;
+        i++) {
       if (precipitation[i] >= 0.1) {
         return i;
       }
@@ -101,7 +99,7 @@ class EcmwfService {
     required double longitude,
   }) async {
     try {
-      final Uri uri = Uri.parse(
+      final uri = Uri.parse(
         '$_baseUrl'
         '?latitude=$latitude'
         '&longitude=$longitude'
@@ -116,111 +114,131 @@ class EcmwfService {
         '&timezone=auto',
       );
 
-      final response = await http.get(uri);
+      final response =
+          await http.get(uri);
 
       if (response.statusCode != 200) {
         print(
-          'ECMWF HTTP ERROR: ${response.statusCode}',
+          'ECMWF HTTP ERROR: '
+          '${response.statusCode}',
         );
+
         return null;
       }
 
-      final Map<String, dynamic> data =
-          jsonDecode(response.body)
-              as Map<String, dynamic>;
+      final decoded =
+          jsonDecode(response.body);
 
-      final Map<String, dynamic>? hourly =
-          data['hourly']
-              as Map<String, dynamic>?;
-
-      if (hourly == null) {
-        print(
-          'ECMWF ERROR: hourly data missing',
-        );
+      if (decoded is! Map) {
         return null;
       }
 
-      final List<String> times =
-          (hourly['time'] as List?)
-                  ?.map(
-                    (e) => e.toString(),
-                  )
-                  .toList() ??
-              [];
+      final hourly =
+          decoded['hourly'];
 
-      final List<double> precipitation =
-          (hourly['precipitation'] as List?)
-                  ?.map(
-                    (e) =>
-                        (e as num).toDouble(),
-                  )
-                  .toList() ??
-              [];
-
-      final List<double> cloudCover =
-          (hourly['cloud_cover'] as List?)
-                  ?.map(
-                    (e) =>
-                        (e as num).toDouble(),
-                  )
-                  .toList() ??
-              [];
-
-      final List<double> temperature =
-          (hourly['temperature_2m'] as List?)
-                  ?.map(
-                    (e) =>
-                        (e as num).toDouble(),
-                  )
-                  .toList() ??
-              [];
-
-      final List<double> windSpeed =
-          (hourly['wind_speed_10m'] as List?)
-                  ?.map(
-                    (e) =>
-                        (e as num).toDouble(),
-                  )
-                  .toList() ??
-              [];
-
-      final List<double> windDirection =
-          (hourly['wind_direction_10m'] as List?)
-                  ?.map(
-                    (e) =>
-                        (e as num).toDouble(),
-                  )
-                  .toList() ??
-              [];
-
-      final List<double> surfacePressure =
-          (hourly['surface_pressure'] as List?)
-                  ?.map(
-                    (e) =>
-                        (e as num).toDouble(),
-                  )
-                  .toList() ??
-              [];
-
-      if (precipitation.isEmpty) {
-        print(
-          'ECMWF ERROR: precipitation data empty',
-        );
+      if (hourly is! Map) {
         return null;
       }
 
-      return EcmwfData(
-        times: times,
-        precipitation: precipitation,
-        cloudCover: cloudCover,
-        temperature: temperature,
-        windSpeed: windSpeed,
-        windDirection: windDirection,
-        surfacePressure: surfacePressure,
+      List<String> readStrings(
+        dynamic value,
+      ) {
+        if (value is! List) {
+          return [];
+        }
+
+        return value
+            .map(
+              (e) => e.toString(),
+            )
+            .toList();
+      }
+
+      List<double> readDoubles(
+        dynamic value,
+      ) {
+        if (value is! List) {
+          return [];
+        }
+
+        return value
+            .whereType<num>()
+            .map(
+              (e) => e.toDouble(),
+            )
+            .toList();
+      }
+
+      final data =
+          EcmwfData(
+        times:
+            readStrings(
+          hourly['time'],
+        ),
+        precipitation:
+            readDoubles(
+          hourly['precipitation'],
+        ),
+        cloudCover:
+            readDoubles(
+          hourly['cloud_cover'],
+        ),
+        temperature:
+            readDoubles(
+          hourly['temperature_2m'],
+        ),
+        windSpeed:
+            readDoubles(
+          hourly['wind_speed_10m'],
+        ),
+        windDirection:
+            readDoubles(
+          hourly[
+              'wind_direction_10m'],
+        ),
+        surfacePressure:
+            readDoubles(
+          hourly[
+              'surface_pressure'],
+        ),
       );
+
+      print(
+        '========================================',
+      );
+
+      print(
+        'ECMWF IFS HRES',
+      );
+
+      print(
+        'Current precipitation: '
+        '${data.currentPrecipitation} mm',
+      );
+
+      print(
+        'Max next 6h: '
+        '${data.maxPrecipitationNext6Hours} mm',
+      );
+
+      print(
+        'Rain expected next 6h: '
+        '${data.rainExpectedNext6Hours}',
+      );
+
+      print(
+        'First rain hour: '
+        '${data.firstRainHourIndex}',
+      );
+
+      print(
+        '========================================',
+      );
+
+      return data;
     } catch (e) {
       print(
-        'ECMWF EXCEPTION: $e',
+        'ECMWF ERROR: $e',
       );
 
       return null;
