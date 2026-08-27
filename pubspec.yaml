@@ -32,3 +32,4 @@ flutter:
 
   assets:
     - assets/models/ccsn_cloud_classification_model.tflite
+    - assets/scenes/
