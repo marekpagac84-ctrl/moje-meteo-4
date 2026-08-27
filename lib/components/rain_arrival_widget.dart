@@ -386,15 +386,24 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
     return Column(
       children: [
         _buildHero(),
-        const SizedBox(height: 12),
-        _buildAiBanner(),
+        Transform.translate(
+          offset: const Offset(0, -18),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: _buildAiBanner(),
+          ),
+        ),
         if (_error != null) ...[
-          const SizedBox(height: 10),
-          _buildError(),
+          Transform.translate(
+            offset: const Offset(0, -8),
+            child: _buildError(),
+          ),
         ],
-        const SizedBox(height: 12),
-        _buildNextRainCard(),
-        const SizedBox(height: 12),
+        Transform.translate(
+          offset: const Offset(0, -4),
+          child: _buildNextRainCard(),
+        ),
+        const SizedBox(height: 10),
         _buildQuickMetrics(),
         const SizedBox(height: 12),
         _buildHourlyForecast(),
@@ -411,33 +420,34 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
 
   Widget _buildHero() {
     final loading = widget.isLoading || (_contextLoading && _meteo == null);
+
     return AnimatedBuilder(
       animation: _sceneController,
       builder: (context, _) {
         return GestureDetector(
           onTap: _showCurrentWeatherDetail,
           child: Container(
-            height: 310,
+            height: 390,
             width: double.infinity,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(32),
+              borderRadius: BorderRadius.circular(34),
               gradient: _heroGradient(),
               boxShadow: [
                 BoxShadow(
-                  color: _accent.withOpacity(0.18),
-                  blurRadius: 34,
-                  spreadRadius: -5,
-                  offset: const Offset(0, 16),
+                  color: _accent.withOpacity(0.20),
+                  blurRadius: 42,
+                  spreadRadius: -10,
+                  offset: const Offset(0, 20),
                 ),
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.32),
-                  blurRadius: 28,
-                  offset: const Offset(0, 16),
+                  color: Colors.black.withOpacity(0.36),
+                  blurRadius: 34,
+                  offset: const Offset(0, 18),
                 ),
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(32),
+              borderRadius: BorderRadius.circular(34),
               child: Stack(
                 children: [
                   Positioned.fill(
@@ -450,6 +460,25 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
                       ),
                     ),
                   ),
+
+                  // Jemný tmavý prechod pre čitateľnosť textu.
+                  Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.04),
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.34),
+                          ],
+                          stops: const [0.0, 0.54, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+
                   Positioned(
                     top: 18,
                     left: 18,
@@ -457,7 +486,7 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
                     child: Row(
                       children: [
                         _glassPill(
-                          icon: Icons.auto_awesome_rounded,
+                          icon: Icons.location_on_rounded,
                           text: 'MOJE METEO • LIVE',
                         ),
                         const Spacer(),
@@ -468,125 +497,152 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
                       ],
                     ),
                   ),
+
                   Positioned(
-                    left: 20,
-                    right: 20,
-                    top: 69,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                    left: 22,
+                    right: 22,
+                    top: 78,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (loading)
-                                const SizedBox(
-                                  width: 42,
-                                  height: 42,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 3,
-                                    color: Colors.white,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (loading)
+                                    const SizedBox(
+                                      width: 44,
+                                      height: 44,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 3,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  else
+                                    Text(
+                                      '${_temperature.toStringAsFixed(0)}°',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 82,
+                                        height: 0.90,
+                                        fontWeight: FontWeight.w200,
+                                        letterSpacing: -6,
+                                      ),
+                                    ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _weatherTitle,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -0.3,
+                                    ),
                                   ),
-                                )
-                              else
-                                Text(
-                                  '${_temperature.toStringAsFixed(0)}°',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 72,
-                                    height: 0.95,
-                                    fontWeight: FontWeight.w200,
-                                    letterSpacing: -5,
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    _humanWeatherComment,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.75),
+                                      fontSize: 12,
+                                      height: 1.35,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
-                                ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _weatherTitle,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                                ],
                               ),
-                              const SizedBox(height: 5),
-                              Text(
-                                _humanWeatherComment,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.72),
-                                  fontSize: 12,
-                                  height: 1.35,
-                                ),
+                            ),
+                            const SizedBox(width: 12),
+                            Transform.translate(
+                              offset: Offset(
+                                math.sin(_sceneController.value * math.pi * 2) * 5,
+                                math.cos(_sceneController.value * math.pi * 2) * 2.5,
                               ),
-                            ],
-                          ),
-                        ),
-                        Transform.translate(
-                          offset: Offset(
-                            math.sin(_sceneController.value * math.pi * 2) * 4,
-                            math.cos(_sceneController.value * math.pi * 2) * 2,
-                          ),
-                          child: _heroWeatherOrb(),
+                              child: _heroWeatherOrb(),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: 16,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: _heroMetric(
-                            icon: Icons.thermostat_rounded,
-                            value: '${_apparentTemperature.toStringAsFixed(0)}°',
-                            label: 'Pocitovo',
-                            onTap: () => _showParameterSheet(_MetricType.temperature),
-                          ),
-                        ),
-                        const SizedBox(width: 7),
-                        Expanded(
-                          child: _heroMetric(
-                            icon: Icons.water_drop_outlined,
-                            value: '${_humidity.toStringAsFixed(0)}%',
-                            label: 'Vlhkosť',
-                            onTap: () => _showParameterSheet(_MetricType.humidity),
-                          ),
-                        ),
-                        const SizedBox(width: 7),
-                        Expanded(
-                          child: _heroMetric(
-                            icon: Icons.air_rounded,
-                            value: '${_windSpeed.toStringAsFixed(0)} km/h',
-                            label: SkyContextService.directionName(_windDirection),
-                            onTap: () => _showParameterSheet(_MetricType.wind),
-                          ),
-                        ),
-                        const SizedBox(width: 7),
-                        Expanded(
-                          child: _heroMetric(
-                            icon: Icons.speed_rounded,
-                            value: _pressure > 0 ? _pressure.toStringAsFixed(0) : '—',
-                            label: 'hPa',
-                            onTap: () => _showParameterSheet(_MetricType.pressure),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+
+                  // "Živé" údaje plávajú priamo nad krajinou.
                   Positioned(
                     left: 18,
-                    bottom: 93,
+                    right: 18,
+                    bottom: 27,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 11),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF07111D).withOpacity(0.50),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(color: Colors.white.withOpacity(0.11)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.18),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _heroMetric(
+                              icon: Icons.thermostat_rounded,
+                              value: '${_apparentTemperature.toStringAsFixed(0)}°',
+                              label: 'Pocitovo',
+                              onTap: () => _showParameterSheet(_MetricType.temperature),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: _heroMetric(
+                              icon: Icons.water_drop_outlined,
+                              value: '${_humidity.toStringAsFixed(0)}%',
+                              label: 'Vlhkosť',
+                              onTap: () => _showParameterSheet(_MetricType.humidity),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: _heroMetric(
+                              icon: Icons.air_rounded,
+                              value: '${_windSpeed.toStringAsFixed(0)} km/h',
+                              label: SkyContextService.directionName(_windDirection),
+                              onTap: () => _showParameterSheet(_MetricType.wind),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: _heroMetric(
+                              icon: Icons.speed_rounded,
+                              value: _pressure > 0 ? _pressure.toStringAsFixed(0) : '—',
+                              label: 'hPa',
+                              onTap: () => _showParameterSheet(_MetricType.pressure),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  Positioned(
+                    right: 20,
+                    top: 205,
                     child: GestureDetector(
                       onTap: _showAltitudeInfo,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.16),
+                          color: const Color(0xFF07111D).withOpacity(0.42),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white.withOpacity(0.08)),
+                          border: Border.all(color: Colors.white.withOpacity(0.10)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -594,11 +650,13 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
                             const Icon(Icons.terrain_rounded, color: Colors.white70, size: 14),
                             const SizedBox(width: 5),
                             Text(
-                              _altitude == null ? 'Výška —' : '${_altitude!.toStringAsFixed(0)} m n. m.',
+                              _altitude == null
+                                  ? 'Výška —'
+                                  : '${_altitude!.toStringAsFixed(0)} m n. m.',
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 10,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                           ],
@@ -620,7 +678,13 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
       return const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF090A18), Color(0xFF252047), Color(0xFF533B6A)],
+        colors: [
+          Color(0xFF090A17),
+          Color(0xFF201B3E),
+          Color(0xFF4D365D),
+          Color(0xFF182536),
+        ],
+        stops: [0.0, 0.35, 0.66, 1.0],
       );
     }
     if (_ctx?.rainExpectedNext6Hours == true ||
@@ -628,43 +692,76 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
       return const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF06182C), Color(0xFF174667), Color(0xFF2E7189)],
+        colors: [
+          Color(0xFF071421),
+          Color(0xFF17364B),
+          Color(0xFF3D6470),
+          Color(0xFF172A31),
+        ],
+        stops: [0.0, 0.36, 0.68, 1.0],
       );
     }
     if (_isNight) {
       return const LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF050A1B), Color(0xFF102654), Color(0xFF263A72)],
+        colors: [
+          Color(0xFF030817),
+          Color(0xFF0E2148),
+          Color(0xFF293C69),
+          Color(0xFF101C2F),
+        ],
+        stops: [0.0, 0.38, 0.70, 1.0],
       );
     }
     return const LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFF031A34), Color(0xFF075F9D), Color(0xFF17A5D6)],
+      colors: [
+        Color(0xFF073659),
+        Color(0xFF167FA5),
+        Color(0xFF6DB7C0),
+        Color(0xFF345F58),
+      ],
+      stops: [0.0, 0.36, 0.68, 1.0],
     );
   }
 
   Widget _heroWeatherOrb() {
     return Container(
-      width: 100,
-      height: 100,
+      width: 116,
+      height: 116,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: RadialGradient(
-          colors: [_accent.withOpacity(0.28), _accent.withOpacity(0.05), Colors.transparent],
+          colors: [
+            Colors.white.withOpacity(0.18),
+            _accent.withOpacity(0.15),
+            Colors.transparent,
+          ],
         ),
       ),
-      child: ShaderMask(
-        shaderCallback: (bounds) => LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Colors.white, _accent],
-        ).createShader(bounds),
-        child: Icon(
-          _weatherIcon(_weatherCode),
-          size: 72,
-          color: Colors.white,
+      child: Center(
+        child: Container(
+          width: 84,
+          height: 84,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white.withOpacity(0.07),
+            border: Border.all(color: Colors.white.withOpacity(0.10)),
+          ),
+          child: ShaderMask(
+            shaderCallback: (bounds) => LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white, _accent],
+            ).createShader(bounds),
+            child: Icon(
+              _weatherIcon(_weatherCode),
+              size: 58,
+              color: Colors.white,
+            ),
+          ),
         ),
       ),
     );
@@ -1309,19 +1406,33 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
     required Widget child,
     Widget? trailing,
   }) {
+    final active = accent ?? const Color(0xFF7BCFD8);
     final body = Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0E1827),
-        borderRadius: BorderRadius.circular(23),
-        border: Border.all(color: (accent ?? Colors.white).withOpacity(accent == null ? 0.06 : 0.15)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF12202A).withOpacity(0.96),
+            const Color(0xFF0B151F).withOpacity(0.98),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: active.withOpacity(accent == null ? 0.08 : 0.18)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
           ),
+          if (accent != null)
+            BoxShadow(
+              color: active.withOpacity(0.05),
+              blurRadius: 22,
+              spreadRadius: -5,
+            ),
         ],
       ),
       child: Column(
@@ -1330,15 +1441,21 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
           Row(
             children: [
               Container(
-                width: 41,
-                height: 41,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
-                  color: (accent ?? const Color(0xFF62D2FF)).withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(14),
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      active.withOpacity(0.22),
+                      active.withOpacity(0.05),
+                    ],
+                  ),
+                  border: Border.all(color: active.withOpacity(0.12)),
                 ),
-                child: Icon(icon, color: accent ?? const Color(0xFF62D2FF), size: 21),
+                child: Icon(icon, color: active, size: 21),
               ),
-              const SizedBox(width: 11),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1349,14 +1466,19 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
                         color: Colors.white,
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
+                        letterSpacing: -0.1,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       subtitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.white.withOpacity(0.48), fontSize: 10, height: 1.3),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.50),
+                        fontSize: 10,
+                        height: 1.3,
+                      ),
                     ),
                   ],
                 ),
@@ -1364,7 +1486,7 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
               if (trailing != null) trailing,
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 15),
           child,
         ],
       ),
@@ -1375,7 +1497,7 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(23),
+        borderRadius: BorderRadius.circular(24),
         child: body,
       ),
     );
@@ -2186,115 +2308,252 @@ class _WeatherScenePainter extends CustomPainter {
     required this.heading,
   });
 
-  bool get _rain => [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].contains(weatherCode);
+  bool get _rain =>
+      [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].contains(weatherCode);
   bool get _snow => [71, 73, 75, 77, 85, 86].contains(weatherCode);
   bool get _storm => [95, 96, 99].contains(weatherCode);
-  bool get _cloudy => weatherCode >= 2 || _rain || _snow || _storm;
+  bool get _fog => [45, 48].contains(weatherCode);
+  bool get _cloudy => weatherCode >= 2 || _rain || _snow || _storm || _fog;
 
   @override
   void paint(Canvas canvas, Size size) {
     final phase = animation * math.pi * 2;
-    final parallax = math.sin(heading * math.pi / 180) * 10;
+    final parallax = math.sin(heading * math.pi / 180) * 12;
+
+    // Slnečný/mesačný disk a mäkké atmosférické svetlo.
+    final celestial = Offset(
+      size.width * 0.78 + parallax,
+      78 + math.sin(phase * 0.45) * 3,
+    );
 
     if (isNight) {
-      final starPaint = Paint()..color = Colors.white.withOpacity(0.30);
-      for (int i = 0; i < 24; i++) {
-        final x = ((i * 79.0) + animation * 8) % size.width;
-        final y = 28 + ((i * 43.0) % 155);
-        canvas.drawCircle(Offset(x, y), i % 5 == 0 ? 1.25 : 0.65, starPaint);
+      final halo = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            const Color(0xFFDDE6FF).withOpacity(0.16),
+            const Color(0xFF9EB6FF).withOpacity(0.05),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromCircle(center: celestial, radius: 92));
+      canvas.drawCircle(celestial, 92, halo);
+      canvas.drawCircle(
+        celestial,
+        22,
+        Paint()..color = const Color(0xFFE8EDFF).withOpacity(0.75),
+      );
+
+      final stars = Paint()..color = Colors.white.withOpacity(0.42);
+      for (int i = 0; i < 28; i++) {
+        final x = ((i * 83.0) + animation * 7) % size.width;
+        final y = 30 + ((i * 47.0) % 155);
+        canvas.drawCircle(Offset(x, y), i % 6 == 0 ? 1.35 : 0.65, stars);
       }
     } else {
-      final sunCenter = Offset(size.width * 0.82 + parallax, 62 + math.sin(phase) * 2);
-      final sunGlow = Paint()
+      final glow = Paint()
         ..shader = RadialGradient(
-          colors: [Colors.white.withOpacity(_cloudy ? 0.07 : 0.23), Colors.transparent],
-        ).createShader(Rect.fromCircle(center: sunCenter, radius: 105));
-      canvas.drawCircle(sunCenter, 105, sunGlow);
+          colors: [
+            const Color(0xFFFFF6CB).withOpacity(_cloudy ? 0.15 : 0.34),
+            const Color(0xFFFFD67B).withOpacity(0.06),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromCircle(center: celestial, radius: 118));
+      canvas.drawCircle(celestial, 118, glow);
+      canvas.drawCircle(
+        celestial,
+        25,
+        Paint()..color = const Color(0xFFFFE9A1).withOpacity(_cloudy ? 0.55 : 0.88),
+      );
     }
 
-    final particlePaint = Paint()..color = Colors.white.withOpacity(0.07);
-    for (int i = 0; i < 14; i++) {
-      final x = ((i * 67.0) + animation * 20) % size.width;
-      final y = 45 + ((i * 37.0) % 145);
-      canvas.drawCircle(Offset(x, y), 0.8, particlePaint);
-    }
+    // Veľmi jemný opar na horizonte.
+    final hazeRect = Rect.fromLTWH(0, size.height * 0.44, size.width, size.height * 0.32);
+    final haze = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.white.withOpacity(_fog ? 0.16 : 0.035),
+          Colors.transparent,
+        ],
+      ).createShader(hazeRect);
+    canvas.drawRect(hazeRect, haze);
 
+    // Zadná vrstva oblakov – pomalšia, vytvára hĺbku.
     if (_cloudy) {
-      final back = Paint()..color = Colors.white.withOpacity(_rain || _storm ? 0.055 : 0.075);
-      final front = Paint()..color = Colors.white.withOpacity(_rain || _storm ? 0.085 : 0.11);
+      final farCloud = Paint()
+        ..color = Colors.white.withOpacity(_rain || _storm ? 0.07 : 0.10);
       _drawCloud(
         canvas,
-        Offset(size.width * 0.18 + math.sin(phase * 0.8) * 10, 92),
+        Offset(size.width * 0.18 + math.sin(phase * 0.45) * 8, 118),
         0.72,
-        back,
+        farCloud,
       );
       _drawCloud(
         canvas,
-        Offset(size.width * 0.72 + math.cos(phase * 0.65) * 12, 128),
-        1.05,
-        front,
+        Offset(size.width * 0.88 + math.cos(phase * 0.38) * 7, 104),
+        0.58,
+        farCloud,
       );
     }
 
-    final mountainPaint = Paint()..color = const Color(0xFF04101C).withOpacity(0.26);
-    final horizon = Path()
-      ..moveTo(0, size.height * 0.82)
-      ..lineTo(size.width * 0.16, size.height * 0.66)
-      ..lineTo(size.width * 0.32, size.height * 0.77)
-      ..lineTo(size.width * 0.50, size.height * 0.59)
-      ..lineTo(size.width * 0.72, size.height * 0.78)
-      ..lineTo(size.width, size.height * 0.64)
+    // Predná oblačnosť.
+    if (_cloudy) {
+      final nearCloud = Paint()
+        ..color = (_rain || _storm
+                ? const Color(0xFFD7E0E6)
+                : Colors.white)
+            .withOpacity(_rain || _storm ? 0.12 : 0.16);
+      _drawCloud(
+        canvas,
+        Offset(size.width * 0.63 + math.cos(phase * 0.62) * 12, 154),
+        1.10,
+        nearCloud,
+      );
+    }
+
+    // 1. vrstva vzdialených kopcov.
+    final farMountain = Paint()
+      ..color = (isNight ? const Color(0xFF14213B) : const Color(0xFF335B5A))
+          .withOpacity(0.46);
+    final farPath = Path()
+      ..moveTo(0, size.height * 0.72)
+      ..lineTo(size.width * 0.13, size.height * 0.59)
+      ..lineTo(size.width * 0.26, size.height * 0.69)
+      ..lineTo(size.width * 0.43, size.height * 0.54)
+      ..lineTo(size.width * 0.61, size.height * 0.70)
+      ..lineTo(size.width * 0.81, size.height * 0.57)
+      ..lineTo(size.width, size.height * 0.68)
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
-    canvas.drawPath(horizon, mountainPaint);
+    canvas.drawPath(farPath, farMountain);
+
+    // 2. vrstva – bližšia a tmavšia.
+    final nearMountain = Paint()
+      ..color = (isNight ? const Color(0xFF08111F) : const Color(0xFF183D38))
+          .withOpacity(0.76);
+    final nearPath = Path()
+      ..moveTo(0, size.height * 0.81)
+      ..quadraticBezierTo(
+        size.width * 0.16,
+        size.height * 0.67,
+        size.width * 0.33,
+        size.height * 0.79,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.52,
+        size.height * 0.64,
+        size.width * 0.68,
+        size.height * 0.79,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.84,
+        size.height * 0.70,
+        size.width,
+        size.height * 0.78,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(nearPath, nearMountain);
+
+    // Najbližší hrebeň pre výraznejší 2.5D efekt.
+    final foreground = Paint()
+      ..color = const Color(0xFF06100F).withOpacity(0.84);
+    final foregroundPath = Path()
+      ..moveTo(0, size.height * 0.88)
+      ..quadraticBezierTo(
+        size.width * 0.24,
+        size.height * 0.79,
+        size.width * 0.48,
+        size.height * 0.89,
+      )
+      ..quadraticBezierTo(
+        size.width * 0.72,
+        size.height * 0.78,
+        size.width,
+        size.height * 0.87,
+      )
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(foregroundPath, foreground);
 
     if (_rain) {
       final rainPaint = Paint()
-        ..color = Colors.white.withOpacity(0.12)
-        ..strokeWidth = 1;
-      for (int i = 0; i < 24; i++) {
-        final x = ((i * 43.0) + animation * 120) % size.width;
-        final y = 55 + ((i * 31.0 + animation * 180) % 145);
-        canvas.drawLine(Offset(x, y), Offset(x - 6, y + 22), rainPaint);
+        ..color = Colors.white.withOpacity(0.16)
+        ..strokeWidth = 1.1;
+      for (int i = 0; i < 28; i++) {
+        final x = ((i * 43.0) + animation * 150) % size.width;
+        final y = 58 + ((i * 31.0 + animation * 220) % 205);
+        canvas.drawLine(Offset(x, y), Offset(x - 7, y + 25), rainPaint);
       }
     }
 
     if (_snow) {
-      final snowPaint = Paint()..color = Colors.white.withOpacity(0.65);
-      for (int i = 0; i < 22; i++) {
-        final x = ((i * 47.0) + animation * 45) % size.width;
-        final y = 55 + ((i * 33.0 + animation * 110) % 150);
-        canvas.drawCircle(Offset(x, y), 1.8, snowPaint);
+      final snowPaint = Paint()..color = Colors.white.withOpacity(0.72);
+      for (int i = 0; i < 26; i++) {
+        final x = ((i * 47.0) + animation * 48) % size.width;
+        final y = 55 + ((i * 35.0 + animation * 125) % 210);
+        canvas.drawCircle(Offset(x, y), i % 4 == 0 ? 2.1 : 1.4, snowPaint);
+      }
+    }
+
+    if (_fog) {
+      final fogPaint = Paint()
+        ..color = Colors.white.withOpacity(0.07)
+        ..strokeWidth = 16
+        ..strokeCap = StrokeCap.round;
+      for (int i = 0; i < 4; i++) {
+        final y = size.height * 0.55 + i * 18;
+        final shift = math.sin(phase * 0.35 + i) * 18;
+        canvas.drawLine(
+          Offset(-20 + shift, y),
+          Offset(size.width + 20 + shift, y),
+          fogPaint,
+        );
       }
     }
 
     if (_storm && animation > 0.78 && animation < 0.84) {
       final lightning = Paint()
-        ..color = const Color(0xFFFFF59D).withOpacity(0.92)
-        ..strokeWidth = 2.7
+        ..color = const Color(0xFFFFF59D).withOpacity(0.95)
+        ..strokeWidth = 2.8
         ..style = PaintingStyle.stroke;
       final bolt = Path()
-        ..moveTo(size.width * 0.78, 92)
-        ..lineTo(size.width * 0.72, 132)
-        ..lineTo(size.width * 0.77, 132)
-        ..lineTo(size.width * 0.70, 188);
+        ..moveTo(size.width * 0.75, 126)
+        ..lineTo(size.width * 0.68, 175)
+        ..lineTo(size.width * 0.73, 175)
+        ..lineTo(size.width * 0.65, 238);
       canvas.drawPath(bolt, lightning);
     }
   }
 
   void _drawCloud(Canvas canvas, Offset center, double scale, Paint paint) {
-    canvas.drawCircle(center, 27 * scale, paint);
-    canvas.drawCircle(Offset(center.dx + 30 * scale, center.dy + 5 * scale), 22 * scale, paint);
-    canvas.drawCircle(Offset(center.dx - 26 * scale, center.dy + 8 * scale), 20 * scale, paint);
+    canvas.drawCircle(center, 28 * scale, paint);
+    canvas.drawCircle(
+      Offset(center.dx + 31 * scale, center.dy + 6 * scale),
+      23 * scale,
+      paint,
+    );
+    canvas.drawCircle(
+      Offset(center.dx - 27 * scale, center.dy + 9 * scale),
+      21 * scale,
+      paint,
+    );
+    canvas.drawCircle(
+      Offset(center.dx + 5 * scale, center.dy - 13 * scale),
+      20 * scale,
+      paint,
+    );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromCenter(
-          center: Offset(center.dx, center.dy + 18 * scale),
-          width: 94 * scale,
-          height: 30 * scale,
+          center: Offset(center.dx, center.dy + 19 * scale),
+          width: 98 * scale,
+          height: 31 * scale,
         ),
-        Radius.circular(20 * scale),
+        Radius.circular(21 * scale),
       ),
       paint,
     );
