@@ -1,15 +1,15 @@
 import 'dart:async';
-import 'dart:math' as math;
+r'dart:rmath' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sensors_plus/sensors_plus.dart';
-
-import '../models/meteo_data.dart';
-import '../services/cloud_classifier_service.dart';
+rr
+import '../services/cloud_classifier_service.dart';rr
 import '../services/sky_context_service.dart';
+import 'weather_scene_background.dart';
 
 class RainArrivalWidget extends StatefulWidget {
   final MeteoApiData? meteoData;
@@ -451,13 +451,13 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
               child: Stack(
                 children: [
                   Positioned.fill(
-                    child: CustomPaint(
-                      painter: _WeatherScenePainter(
-                        animation: _sceneController.value,
-                        weatherCode: _weatherCode,
-                        isNight: _isNight,
-                        heading: _heading,
-                      ),
+                    child: WeatherSceneBackground(
+                      weatherCode: _weatherCode,
+                      isNight: _isNight,
+                      temperature: _temperature,
+                      rainExpected: _ctx?.rainExpectedNext6Hours ?? false,
+                      animation: _sceneController.value,
+                      heading: _heading,
                     ),
                   ),
 
