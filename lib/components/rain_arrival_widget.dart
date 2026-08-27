@@ -1984,7 +1984,7 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Text(label, style: const TextStyle(color: Colors.white46, fontSize: 11)),
+            child: Text(label, style: const TextStyle(color: const Color(0x75FFFFFF), fontSize: 11)),
           ),
           const SizedBox(width: 12),
           Flexible(
