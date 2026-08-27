@@ -4,45 +4,50 @@ import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 class CloudClassificationResult {
-  final String label;
-  final String shortLabel;
+  final String name;
+  final String code;
   final double confidence;
 
   const CloudClassificationResult({
-    required this.label,
-    required this.shortLabel,
+    required this.name,
+    required this.code,
     required this.confidence,
   });
 
-  bool get isConvective {
-    return shortLabel == 'Cb';
-  }
+  bool get isCumulonimbus => code == 'Cb';
 
-  bool get isRainCloud {
-    return shortLabel == 'Cb' ||
-        shortLabel == 'Ns';
-  }
+  bool get isNimbostratus => code == 'Ns';
 
-  bool get isHighCloud {
-    return shortLabel == 'Ci' ||
-        shortLabel == 'Cs' ||
-        shortLabel == 'Cc';
-  }
+  bool get isRainCloud =>
+      code == 'Cb' || code == 'Ns';
 
-  bool get isLowCloud {
-    return shortLabel == 'Cu' ||
-        shortLabel == 'Sc' ||
-        shortLabel == 'St';
-  }
+  bool get isConvectiveCloud =>
+      code == 'Cb';
+
+  bool get isHighCloud =>
+      code == 'Ci' ||
+      code == 'Cs' ||
+      code == 'Cc';
+
+  bool get isLowCloud =>
+      code == 'Cu' ||
+      code == 'Sc' ||
+      code == 'St';
 }
 
 class CloudClassifierService {
-  static const String _modelPath =
+  static const String modelPath =
       'assets/models/cloud_classifier.tflite';
 
   Interpreter? _interpreter;
 
-  static const List<String> _labels = [
+  bool _initialized = false;
+
+  /*
+   * PORADIE TRIED JE PRESNE PODĽA MODELU
+   * Cloud Classification / CCSN.
+   */
+  static const List<String> _names = [
     'Cirrus',
     'Cirrostratus',
     'Cirrocumulus',
@@ -56,7 +61,7 @@ class CloudClassifierService {
     'Contrail',
   ];
 
-  static const List<String> _shortLabels = [
+  static const List<String> _codes = [
     'Ci',
     'Cs',
     'Cc',
@@ -70,35 +75,58 @@ class CloudClassifierService {
     'Ct',
   ];
 
-  bool _initialized = false;
-
   Future<void> initialize() async {
-    if (_initialized) {
+    if (_initialized &&
+        _interpreter != null) {
       return;
     }
 
     try {
       _interpreter =
           await Interpreter.fromAsset(
-        _modelPath,
+        modelPath,
       );
 
       _interpreter!.allocateTensors();
 
       _initialized = true;
 
+      final input =
+          _interpreter!.getInputTensor(0);
+
+      final output =
+          _interpreter!.getOutputTensor(0);
+
       print(
-        'CLOUD AI: model loaded successfully',
+        '========================================',
       );
 
       print(
-        'CLOUD AI INPUT: '
-        '${_interpreter!.getInputTensor(0).shape}',
+        'CLOUD AI: MODEL LOADED',
       );
 
       print(
-        'CLOUD AI OUTPUT: '
-        '${_interpreter!.getOutputTensor(0).shape}',
+        'CLOUD AI INPUT SHAPE: '
+        '${input.shape}',
+      );
+
+      print(
+        'CLOUD AI INPUT TYPE: '
+        '${input.type}',
+      );
+
+      print(
+        'CLOUD AI OUTPUT SHAPE: '
+        '${output.shape}',
+      );
+
+      print(
+        'CLOUD AI OUTPUT TYPE: '
+        '${output.type}',
+      );
+
+      print(
+        '========================================',
       );
     } catch (e) {
       print(
@@ -125,13 +153,21 @@ class CloudClassifierService {
 
       if (decoded == null) {
         print(
-          'CLOUD AI: image decode failed',
+          'CLOUD AI: IMAGE DECODE FAILED',
         );
 
         return null;
       }
 
-      // Model očakáva 224 x 224 RGB.
+      /*
+       * MODEL:
+       *
+       * 224 x 224
+       * RGB
+       * float32
+       * 0.0 - 1.0
+       */
+
       final resized =
           img.copyResize(
         decoded,
@@ -140,14 +176,6 @@ class CloudClassifierService {
         interpolation:
             img.Interpolation.linear,
       );
-
-      // ----------------------------------------------------------
-      // Vstupný tensor:
-      //
-      // [1, 224, 224, 3]
-      //
-      // RGB float32 v rozsahu 0.0 - 1.0
-      // ----------------------------------------------------------
 
       final input =
           List.generate(
@@ -173,10 +201,12 @@ class CloudClassifierService {
         ),
       );
 
-      final outputShape =
+      final outputTensor =
           _interpreter!
-              .getOutputTensor(0)
-              .shape;
+              .getOutputTensor(0);
+
+      final outputShape =
+          outputTensor.shape;
 
       final int outputSize =
           outputShape.last;
@@ -184,7 +214,7 @@ class CloudClassifierService {
       final output =
           List.generate(
         1,
-        (_) => List.filled(
+        (_) => List<double>.filled(
           outputSize,
           0.0,
         ),
@@ -199,8 +229,7 @@ class CloudClassifierService {
           output[0]
               .map(
                 (value) =>
-                    (value as num)
-                        .toDouble(),
+                    (value as num).toDouble(),
               )
               .toList();
 
@@ -218,39 +247,80 @@ class CloudClassifierService {
           i++) {
         if (scores[i] >
             bestScore) {
-          bestScore =
-              scores[i];
-
+          bestScore = scores[i];
           bestIndex = i;
         }
       }
 
-      if (bestIndex >=
-          _labels.length) {
+      if (bestIndex < 0 ||
+          bestIndex >=
+              _names.length) {
         print(
-          'CLOUD AI: unknown class index $bestIndex',
+          'CLOUD AI: UNKNOWN CLASS '
+          '$bestIndex',
         );
 
         return null;
       }
 
+      /*
+       * Niektoré modely vracajú logits,
+       * nie pravdepodobnosti.
+       *
+       * Ak výstup nie je v rozsahu 0-1,
+       * použijeme softmax.
+       */
+
+      double confidence;
+
+      final bool looksLikeProbabilities =
+          scores.every(
+        (value) =>
+            value >= 0.0 &&
+            value <= 1.0,
+      );
+
+      if (looksLikeProbabilities) {
+        confidence =
+            bestScore;
+      } else {
+        confidence =
+            _softmax(scores)[bestIndex];
+      }
+
       final result =
           CloudClassificationResult(
-        label: _labels[bestIndex],
-        shortLabel:
-            _shortLabels[bestIndex],
-        confidence:
-            bestScore.clamp(
-              0.0,
-              1.0,
-            ),
+        name: _names[bestIndex],
+        code: _codes[bestIndex],
+        confidence: confidence.clamp(
+          0.0,
+          1.0,
+        ),
       );
 
       print(
-        'CLOUD AI RESULT: '
-        '${result.label} '
-        '(${result.shortLabel}) '
+        '========================================',
+      );
+
+      print(
+        'CLOUD AI RESULT',
+      );
+
+      print(
+        'TYPE: ${result.name}',
+      );
+
+      print(
+        'CODE: ${result.code}',
+      );
+
+      print(
+        'CONFIDENCE: '
         '${(result.confidence * 100).toStringAsFixed(1)}%',
+      );
+
+      print(
+        '========================================',
       );
 
       return result;
@@ -261,6 +331,70 @@ class CloudClassifierService {
 
       return null;
     }
+  }
+
+  List<double> _softmax(
+    List<double> values,
+  ) {
+    if (values.isEmpty) {
+      return [];
+    }
+
+    final maxValue =
+        values.reduce(
+      (a, b) =>
+          a > b ? a : b,
+    );
+
+    final exponentials =
+        values.map(
+      (value) =>
+          _exp(value - maxValue),
+    );
+
+    final sum =
+        exponentials.fold<double>(
+      0.0,
+      (a, b) => a + b,
+    );
+
+    if (sum == 0) {
+      return List<double>.filled(
+        values.length,
+        0.0,
+      );
+    }
+
+    return exponentials
+        .map(
+          (value) =>
+              value / sum,
+        )
+        .toList();
+  }
+
+  double _exp(
+    double value,
+  ) {
+    /*
+     * Dart math.exp by proxy through
+     * a simple approximation is not ideal,
+     * therefore this branch is only used
+     * if model output isn't already
+     * probability-like.
+     */
+
+    double result = 1.0;
+    double term = 1.0;
+
+    for (int i = 1;
+        i <= 20;
+        i++) {
+      term *= value / i;
+      result += term;
+    }
+
+    return result;
   }
 
   void dispose() {
