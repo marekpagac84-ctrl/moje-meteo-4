@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 import '../models/meteo_data.dart';
+import 'cloud_classifier_service.dart';
 import 'ecmwf_service.dart';
 
 class WeatherIntelligenceResult {
@@ -21,6 +22,7 @@ class WeatherIntelligenceResult {
 
   final double? radarDistanceKm;
   final double? lightningDistanceKm;
+
   final int? rainProbability;
   final double? precipitation;
 
@@ -29,6 +31,14 @@ class WeatherIntelligenceResult {
 
   final double? skyBluePercent;
   final double? cloudinessEstimate;
+
+  final String? cloudType;
+  final String? cloudTypeShort;
+  final double? cloudTypeConfidence;
+
+  final double? ecmwfPrecipitation;
+  final double? ecmwfMaxPrecipitation6h;
+  final bool? ecmwfRainExpected;
 
   final List<String> evidence;
 
@@ -48,6 +58,12 @@ class WeatherIntelligenceResult {
     required this.windSpeed,
     required this.skyBluePercent,
     required this.cloudinessEstimate,
+    required this.cloudType,
+    required this.cloudTypeShort,
+    required this.cloudTypeConfidence,
+    required this.ecmwfPrecipitation,
+    required this.ecmwfMaxPrecipitation6h,
+    required this.ecmwfRainExpected,
     required this.evidence,
   });
 }
@@ -55,6 +71,10 @@ class WeatherIntelligenceResult {
 class WeatherIntelligenceService {
   static const String _openMeteo =
       'https://api.open-meteo.com/v1/forecast';
+
+  final CloudClassifierService
+      _cloudClassifier =
+      CloudClassifierService();
 
   final EcmwfService _ecmwfService =
       EcmwfService();
@@ -73,24 +93,41 @@ class WeatherIntelligenceService {
     final List<String> evidence = [];
 
     int rainProbability = 0;
+
     double precipitation = 0.0;
+
     double windDirection = 0.0;
+
     double windSpeed = 0.0;
 
     bool rainLikelySoon = false;
+
     bool stormNearby = false;
 
     double score = 0.0;
 
     double? skyBluePercent;
+
     double? cloudinessEstimate;
+
+    String? cloudType;
+
+    String? cloudTypeShort;
+
+    double? cloudTypeConfidence;
+
+    double? ecmwfPrecipitation;
+
+    double? ecmwfMaxPrecipitation6h;
+
+    bool? ecmwfRainExpected;
 
     // ==========================================================
     // 1. OPEN-METEO
     // ==========================================================
 
     try {
-      final Uri uri = Uri.parse(
+      final uri = Uri.parse(
         '$_openMeteo'
         '?latitude=$lat'
         '&longitude=$lng'
@@ -115,118 +152,122 @@ class WeatherIntelligenceService {
           await http.get(uri);
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data =
-            jsonDecode(response.body)
-                as Map<String, dynamic>;
+        final decoded =
+            jsonDecode(response.body);
 
-        final Map<String, dynamic>? current =
-            data['current']
-                as Map<String, dynamic>?;
+        if (decoded is Map) {
+          final current =
+              decoded['current'];
 
-        final Map<String, dynamic>? hourly =
-            data['hourly']
-                as Map<String, dynamic>?;
+          final hourly =
+              decoded['hourly'];
 
-        if (current != null) {
-          precipitation =
-              (current['precipitation'] as num?)
-                      ?.toDouble() ??
-                  0.0;
+          if (current is Map) {
+            precipitation =
+                (current[
+                            'precipitation']
+                        as num?)
+                    ?.toDouble() ??
+                0.0;
 
-          windDirection =
-              (current[
-                          'wind_direction_10m']
-                      as num?)
-                  ?.toDouble() ??
-              0.0;
+            windDirection =
+                (current[
+                            'wind_direction_10m']
+                        as num?)
+                    ?.toDouble() ??
+                0.0;
 
-          windSpeed =
-              (current[
-                          'wind_speed_10m']
-                      as num?)
-                  ?.toDouble() ??
-              0.0;
-        }
-
-        if (hourly != null) {
-          final List<int> probabilities =
-              (hourly[
-                          'precipitation_probability']
-                      as List?)
-                  ?.map(
-                    (e) =>
-                        (e as num).toInt(),
-                  )
-                  .toList() ??
-              [];
-
-          final List<double> precipitations =
-              (hourly[
-                          'precipitation']
-                      as List?)
-                  ?.map(
-                    (e) =>
-                        (e as num).toDouble(),
-                  )
-                  .toList() ??
-              [];
-
-          if (probabilities.isNotEmpty) {
-            rainProbability =
-                probabilities.first;
+            windSpeed =
+                (current[
+                            'wind_speed_10m']
+                        as num?)
+                    ?.toDouble() ??
+                0.0;
           }
 
-          final int lookAhead =
-              math.min(
-                probabilities.length,
-                6,
-              );
+          if (hourly is Map) {
+            final probabilities =
+                (hourly[
+                            'precipitation_probability']
+                        as List?)
+                    ?.whereType<num>()
+                    .map(
+                      (e) => e.toInt(),
+                    )
+                    .toList() ??
+                [];
 
-          for (int i = 0;
-              i < lookAhead;
-              i++) {
-            final int probability =
-                probabilities[i];
+            final precipitations =
+                (hourly[
+                            'precipitation']
+                        as List?)
+                    ?.whereType<num>()
+                    .map(
+                      (e) => e.toDouble(),
+                    )
+                    .toList() ??
+                [];
 
-            final double rain =
-                precipitations.length > i
-                    ? precipitations[i]
-                    : 0.0;
+            if (probabilities
+                .isNotEmpty) {
+              rainProbability =
+                  probabilities.first;
+            }
 
-            if (probability >= 40 ||
-                rain >= 0.1) {
-              rainLikelySoon = true;
-              break;
+            final count =
+                math.min(
+              probabilities.length,
+              6,
+            );
+
+            for (int i = 0;
+                i < count;
+                i++) {
+              final probability =
+                  probabilities[i];
+
+              final rain =
+                  precipitations.length >
+                          i
+                      ? precipitations[i]
+                      : 0.0;
+
+              if (probability >= 40 ||
+                  rain >= 0.1) {
+                rainLikelySoon =
+                    true;
+                break;
+              }
             }
           }
-        }
-
-        evidence.add(
-          'Open-Meteo poskytlo aktuálnu modelovú situáciu.',
-        );
-
-        if (rainLikelySoon) {
-          score += 0.12;
 
           evidence.add(
-            'Open-Meteo očakáva zrážky v blízkom časovom horizonte.',
+            'Open-Meteo poskytlo aktuálnu modelovú situáciu.',
           );
-        }
 
-        if (rainProbability >= 60) {
-          score += 0.10;
+          if (rainLikelySoon) {
+            score += 0.14;
 
-          evidence.add(
-            'Open-Meteo uvádza pravdepodobnosť zrážok $rainProbability %.',
-          );
-        }
+            evidence.add(
+              'Open-Meteo očakáva možnosť zrážok v blízkom časovom horizonte.',
+            );
+          }
 
-        if (precipitation > 0.5) {
-          score += 0.15;
+          if (rainProbability >= 60) {
+            score += 0.10;
 
-          evidence.add(
-            'Open-Meteo už uvádza aktuálne zrážky.',
-          );
+            evidence.add(
+              'Open-Meteo uvádza pravdepodobnosť zrážok $rainProbability %.',
+            );
+          }
+
+          if (precipitation > 0.5) {
+            score += 0.12;
+
+            evidence.add(
+              'Open-Meteo uvádza aktuálne zrážky.',
+            );
+          }
         }
       } else {
         evidence.add(
@@ -240,19 +281,21 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 2. EXISTUJÚCE METEO DÁTA
+    // 2. EXISTUJÚCE METEO DATA
     // ==========================================================
 
     if (meteoData != null) {
       final probs =
-          meteoData.hourlyPrecipitationProbability;
+          meteoData
+              .hourlyPrecipitationProbability;
 
       final precips =
-          meteoData.hourlyPrecipitation;
+          meteoData
+              .hourlyPrecipitation;
 
       if (probs != null &&
           probs.isNotEmpty) {
-        final int localProbability =
+        final localProbability =
             probs.first;
 
         if (localProbability >
@@ -273,66 +316,40 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 3. ECMWF IFS HRES 9 KM
+    // 3. ECMWF IFS HRES
     // ==========================================================
 
-    EcmwfData? ecmwfData;
-
     try {
-      ecmwfData =
-          await _ecmwfService.getForecast(
+      final ecmwf =
+          await _ecmwfService
+              .getForecast(
         latitude: lat,
         longitude: lng,
       );
 
-      if (ecmwfData != null) {
-        final bool ecmwfRain =
-            ecmwfData.rainExpectedNext6Hours;
+      if (ecmwf != null) {
+        ecmwfPrecipitation =
+            ecmwf.currentPrecipitation;
 
-        final double ecmwfMaxRain =
-            ecmwfData.maxPrecipitationNext6Hours;
+        ecmwfMaxPrecipitation6h =
+            ecmwf
+                .maxPrecipitationNext6Hours;
 
-        final int? ecmwfRainHour =
-            ecmwfData.firstRainHourIndex;
-
-        print(
-          '================================================',
-        );
-        print(
-          'ECMWF IFS HRES 9 KM',
-        );
-        print(
-          'Current precipitation: '
-          '${ecmwfData.currentPrecipitation} mm',
-        );
-        print(
-          'Max precipitation next 6h: '
-          '$ecmwfMaxRain mm',
-        );
-        print(
-          'Rain expected next 6h: '
-          '$ecmwfRain',
-        );
-        print(
-          'First rain hour index: '
-          '$ecmwfRainHour',
-        );
-        print(
-          '================================================',
-        );
+        ecmwfRainExpected =
+            ecmwf.rainExpectedNext6Hours;
 
         evidence.add(
-          'ECMWF IFS HRES 9 km bol načítaný.',
+          'ECMWF IFS HRES bol načítaný.',
         );
 
-        if (ecmwfRain) {
+        if (ecmwfRainExpected ==
+            true) {
           evidence.add(
             'ECMWF očakáva merateľné zrážky v najbližších 6 hodinách.',
           );
 
-          // ECMWF a Open-Meteo sa zhodujú.
           if (rainLikelySoon) {
-            score += 0.10;
+            score += 0.12;
 
             evidence.add(
               'ECMWF a Open-Meteo sa zhodujú na riziku zrážok.',
@@ -340,12 +357,9 @@ class WeatherIntelligenceService {
           }
         } else {
           evidence.add(
-            'ECMWF momentálne nepredpokladá merateľné zrážky v najbližších 6 hodinách.',
+            'ECMWF momentálne neočakáva merateľné zrážky v najbližších 6 hodinách.',
           );
 
-          // Ak Open-Meteo hlási dážď, ale ECMWF nie,
-          // nezvyšujeme skóre. Práve naopak, upozorníme
-          // na rozpor medzi modelmi.
           if (rainLikelySoon) {
             score -= 0.06;
 
@@ -355,10 +369,9 @@ class WeatherIntelligenceService {
           }
         }
 
-        // Ak ECMWF očakáva výraznejšie zrážky,
-        // pridáme menší signál.
-        if (ecmwfMaxRain >= 2.0) {
-          score += 0.05;
+        if (ecmwfMaxPrecipitation6h >=
+            2.0) {
+          score += 0.06;
 
           evidence.add(
             'ECMWF očakáva výraznejšie zrážky v najbližších hodinách.',
@@ -366,16 +379,12 @@ class WeatherIntelligenceService {
         }
       } else {
         evidence.add(
-          'ECMWF IFS momentálne neposkytol dáta.',
+          'ECMWF IFS neposkytol dáta.',
         );
       }
     } catch (e) {
       evidence.add(
         'ECMWF IFS sa nepodarilo načítať.',
-      );
-
-      print(
-        'ECMWF INTELLIGENCE ERROR: $e',
       );
     }
 
@@ -384,25 +393,29 @@ class WeatherIntelligenceService {
     // ==========================================================
 
     if (pressure > 0) {
-      if (pressureChangeRate <= -0.30) {
-        score += 0.15;
+      if (pressureChangeRate <=
+          -0.30) {
+        score += 0.12;
 
         evidence.add(
           'Barometer zaznamenáva výrazný pokles tlaku.',
         );
-      } else if (pressureChangeRate <= -0.15) {
-        score += 0.10;
+      } else if (pressureChangeRate <=
+          -0.15) {
+        score += 0.08;
 
         evidence.add(
           'Barometer zaznamenáva rýchlejší pokles tlaku.',
         );
-      } else if (pressureChangeRate <= -0.05) {
-        score += 0.04;
+      } else if (pressureChangeRate <=
+          -0.05) {
+        score += 0.03;
 
         evidence.add(
           'Tlak mierne klesá.',
         );
-      } else if (pressureChangeRate >= 0.15) {
+      } else if (pressureChangeRate >=
+          0.15) {
         evidence.add(
           'Tlak rastie – atmosféra sa zatiaľ skôr stabilizuje.',
         );
@@ -428,13 +441,15 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 6. KAMERA – REÁLNE PIXELY
+    // 6. KAMERA – RGB ANALÝZA
     // ==========================================================
 
     if (imageBytes != null &&
         imageBytes.isNotEmpty) {
-      final SkyImageAnalysis sky =
-          _analyzeSkyImage(imageBytes);
+      final sky =
+          _analyzeSkyImage(
+        imageBytes,
+      );
 
       skyBluePercent =
           sky.blueSkyPercent;
@@ -446,11 +461,13 @@ class WeatherIntelligenceService {
         'Kamera analyzovala ${sky.sampleCount} vzoriek obrazu.',
       );
 
-      if (sky.blueSkyPercent >= 65) {
+      if (sky.blueSkyPercent >=
+          65) {
         evidence.add(
           'Kamera vidí prevažne modrú oblohu.',
         );
-      } else if (sky.blueSkyPercent >= 35) {
+      } else if (sky.blueSkyPercent >=
+          35) {
         evidence.add(
           'Kamera vidí kombináciu modrej oblohy a oblačnosti.',
         );
@@ -459,31 +476,249 @@ class WeatherIntelligenceService {
           'Kamera vidí málo modrej oblohy.',
         );
 
-        score += 0.06;
-      }
-
-      if (sky.cloudinessPercent >= 75) {
-        evidence.add(
-          'Obraz naznačuje výraznú oblačnosť.',
-        );
-
-        score += 0.08;
-      }
-
-      if (sky.darkPercent >= 45) {
-        evidence.add(
-          'Výrazná časť obrazu je tmavá.',
-        );
-
         score += 0.05;
       }
 
-      if (sky.cloudinessPercent >= 65 &&
+      if (sky.cloudinessPercent >=
+          75) {
+        score += 0.06;
+
+        evidence.add(
+          'Obraz naznačuje výraznú oblačnosť.',
+        );
+      }
+
+      if (sky.darkPercent >=
+          45) {
+        score += 0.04;
+
+        evidence.add(
+          'Výrazná časť obrazu je tmavá.',
+        );
+      }
+
+      if (sky.cloudinessPercent >=
+              65 &&
           rainLikelySoon) {
-        score += 0.10;
+        score += 0.08;
 
         evidence.add(
           'Obraz oblohy a meteorologický model sa navzájom podporujú.',
+        );
+      }
+
+      // ========================================================
+      // 7. AI ROZPOZNANIE OBLAKOV
+      // ========================================================
+
+      try {
+        final cloud =
+            await _cloudClassifier
+                .classify(
+          imageBytes,
+        );
+
+        if (cloud != null) {
+          cloudType =
+              cloud.name;
+
+          cloudTypeShort =
+              cloud.code;
+
+          cloudTypeConfidence =
+              cloud.confidence;
+
+          evidence.add(
+            'AI kamera rozpoznala '
+            '${cloud.name} (${cloud.code}) '
+            's istotou '
+            '${(cloud.confidence * 100).toStringAsFixed(0)} %.',
+          );
+
+          // ------------------------------------------------------
+          // CUMULONIMBUS
+          // ------------------------------------------------------
+
+          if (cloud.isCumulonimbus) {
+            evidence.add(
+              'AI identifikovala Cumulonimbus – '
+              'mohutný konvektívny oblak spojený '
+              's prehánkami, búrkami a možným krupobitím.',
+            );
+
+            if (cloud.confidence >=
+                0.55) {
+              score += 0.10;
+            }
+
+            if (cloud.confidence >=
+                    0.65 &&
+                (rainLikelySoon ||
+                    ecmwfRainExpected ==
+                        true)) {
+              stormNearby = true;
+
+              score += 0.12;
+
+              evidence.add(
+                'AI rozpoznanie Cumulonimbusu '
+                'sa zhoduje s meteorologickými modelmi.',
+              );
+            }
+
+            if (pressureChangeRate <=
+                -0.10) {
+              score += 0.05;
+
+              evidence.add(
+                'Cumulonimbus a pokles tlaku '
+                'zvyšujú podozrenie na konvekciu.',
+              );
+            }
+          }
+
+          // ------------------------------------------------------
+          // NIMBOSTRATUS
+          // ------------------------------------------------------
+
+          else if (cloud.isNimbostratus) {
+            evidence.add(
+              'AI identifikovala Nimbostratus – '
+              'rozsiahlu dažďovú oblačnosť.',
+            );
+
+            if (cloud.confidence >=
+                0.55) {
+              score += 0.08;
+            }
+
+            if (rainLikelySoon) {
+              score += 0.08;
+
+              evidence.add(
+                'Nimbostratus a model zrážok sa navzájom podporujú.',
+              );
+            }
+          }
+
+          // ------------------------------------------------------
+          // ALTOSTRATUS
+          // ------------------------------------------------------
+
+          else if (cloud.code ==
+              'As') {
+            evidence.add(
+              'AI identifikovala Altostratus – '
+              'strednú súvislú oblačnosť, '
+              'ktorá môže predchádzať zrážkovému systému.',
+            );
+
+            if (cloud.confidence >=
+                0.60) {
+              score += 0.03;
+            }
+          }
+
+          // ------------------------------------------------------
+          // STRATUS
+          // ------------------------------------------------------
+
+          else if (cloud.code ==
+              'St') {
+            evidence.add(
+              'AI identifikovala Stratus – '
+              'nízku súvislú oblačnosť.',
+            );
+
+            if (cloud.confidence >=
+                0.60) {
+              score += 0.02;
+            }
+          }
+
+          // ------------------------------------------------------
+          // STRATOCUMULUS
+          // ------------------------------------------------------
+
+          else if (cloud.code ==
+              'Sc') {
+            evidence.add(
+              'AI identifikovala Stratocumulus – '
+              'nízku až strednú oblačnosť.',
+            );
+
+            if (cloud.confidence >=
+                0.60) {
+              score += 0.01;
+            }
+          }
+
+          // ------------------------------------------------------
+          // CUMULUS
+          // ------------------------------------------------------
+
+          else if (cloud.code ==
+              'Cu') {
+            evidence.add(
+              'AI identifikovala Cumulus – '
+              'kupovitú oblačnosť.',
+            );
+
+            /*
+             * Cumulus sám o sebe neznamená,
+             * že bude pršať.
+             */
+          }
+
+          // ------------------------------------------------------
+          // VYSOKÁ OBLAČNOSŤ
+          // ------------------------------------------------------
+
+          else if (cloud.isHighCloud) {
+            evidence.add(
+              'AI identifikovala vysokú oblačnosť – '
+              'sama o sebe neznamená bezprostredný dážď.',
+            );
+          }
+
+          // ------------------------------------------------------
+          // AI + MODEL
+          // ------------------------------------------------------
+
+          if (cloud.isRainCloud &&
+              rainLikelySoon) {
+            score += 0.10;
+
+            evidence.add(
+              'AI rozpoznanie oblakov a model zrážok sa zhodujú.',
+            );
+          }
+
+          // ------------------------------------------------------
+          // AI + ECMWF
+          // ------------------------------------------------------
+
+          if (cloud.isRainCloud &&
+              ecmwfRainExpected ==
+                  true) {
+            score += 0.08;
+
+            evidence.add(
+              'AI rozpoznanie dažďového oblaku a ECMWF sa zhodujú.',
+            );
+          }
+        } else {
+          evidence.add(
+            'AI rozpoznanie oblakov nebolo dostupné.',
+          );
+        }
+      } catch (e) {
+        evidence.add(
+          'AI analýza oblakov zlyhala.',
+        );
+
+        print(
+          'CLOUD AI INTELLIGENCE ERROR: $e',
         );
       }
     } else {
@@ -493,39 +728,52 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 7. INTENZÍVNE ZRÁŽKY
+    // 8. INTENZÍVNE ZRÁŽKY
     // ==========================================================
 
     if (precipitation >= 8 &&
         rainProbability >= 60) {
       stormNearby = true;
 
-      score += 0.15;
+      score += 0.10;
 
       evidence.add(
         'Model naznačuje možnosť veľmi intenzívnych zrážok.',
       );
     }
 
+    if (ecmwfMaxPrecipitation6h !=
+            null &&
+        ecmwfMaxPrecipitation6h! >=
+            8.0) {
+      stormNearby = true;
+
+      score += 0.08;
+
+      evidence.add(
+        'ECMWF naznačuje výrazné zrážky v najbližších hodinách.',
+      );
+    }
+
     // ==========================================================
-    // 8. NORMALIZÁCIA
+    // 9. NORMALIZÁCIA
     // ==========================================================
 
-    //
-    // DÔLEŽITÁ ZMENA:
-    //
-    // Predtým bolo:
-    //
-    //   0.40 + score
-    //
-    // To spôsobovalo, že "zhoda" mohla byť veľmi vysoká
-    // aj pri slabej modelovej podpore.
-    //
-    // Teraz začíname na 30 % a pridávame iba reálne
-    // dostupné signály.
-    //
+    /*
+     * DÔLEŽITÉ:
+     *
+     * Už nepoužívame staré:
+     *
+     * 0.40 + score
+     *
+     * Pretože práve to mohlo vytvárať
+     * umelo vysoké hodnoty typu 95 %.
+     *
+     * Začíname na 30 % a zvyšujeme iba
+     * podľa skutočných signálov.
+     */
 
-    final double confidence =
+    final confidence =
         math.min(
           0.95,
           math.max(
@@ -535,10 +783,11 @@ class WeatherIntelligenceService {
         );
 
     // ==========================================================
-    // 9. HLAVNÝ ZÁVER
+    // 10. HLAVNÝ ZÁVER
     // ==========================================================
 
     String title;
+
     String description;
 
     if (stormNearby) {
@@ -550,16 +799,18 @@ class WeatherIntelligenceService {
           'zvýšené riziko intenzívnych zrážok '
           'alebo búrkovej aktivity.';
     } else if (rainLikelySoon &&
-        pressureChangeRate <= -0.10 &&
+        pressureChangeRate <=
+            -0.10 &&
         (cloudinessEstimate == null ||
-            cloudinessEstimate >= 50)) {
+            cloudinessEstimate >=
+                50)) {
       title =
           'Dážď sa môže blížiť';
 
       description =
-          'Meteorologické modely naznačujú zrážky, '
-          'barometer klesá a kamera zároveň '
-          'nevidí úplne čistú oblohu.';
+          'Meteorologické modely naznačujú '
+          'zrážky, tlak klesá a obraz oblohy '
+          'nie je úplne čistý.';
     } else if (rainLikelySoon) {
       title =
           'Zrážky sú pravdepodobné';
@@ -567,15 +818,31 @@ class WeatherIntelligenceService {
       description =
           'Meteorologické dáta naznačujú možný '
           'nástup zrážok v blízkom časovom horizonte.';
-    } else if (cloudinessEstimate != null &&
-        cloudinessEstimate >= 75) {
+    } else if (cloudTypeShort ==
+            'Cb' &&
+        (cloudTypeConfidence ??
+                0.0) >=
+            0.65) {
+      title =
+          'AI vidí búrkový oblak';
+
+      description =
+          'Kamera pomocou AI identifikovala '
+          'Cumulonimbus. Modely zatiaľ nemusia '
+          'potvrdzovať okamžité zrážky.';
+    } else if (cloudinessEstimate !=
+            null &&
+        cloudinessEstimate! >=
+            75) {
       title =
           'Obloha je výrazne zamračená';
 
       description =
           'Kamera zachytila výraznú oblačnosť, '
-          'hoci model zatiaľ nepredpokladá bezprostredný dážď.';
-    } else if (pressureChangeRate <= -0.15) {
+          'hoci model zatiaľ nepredpokladá '
+          'bezprostredný dážď.';
+    } else if (pressureChangeRate <=
+        -0.15) {
       title =
           'Atmosféra sa môže meniť';
 
@@ -593,7 +860,7 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 10. TEXT ISTOTY
+    // 11. TEXT ISTOTY
     // ==========================================================
 
     String confidenceText;
@@ -601,10 +868,12 @@ class WeatherIntelligenceService {
     if (confidence >= 0.85) {
       confidenceText =
           'Veľmi dobrá zhoda dostupných dát';
-    } else if (confidence >= 0.70) {
+    } else if (confidence >=
+        0.70) {
       confidenceText =
           'Dobrá zhoda dostupných dát';
-    } else if (confidence >= 0.55) {
+    } else if (confidence >=
+        0.55) {
       confidenceText =
           'Stredná zhoda dostupných dát';
     } else {
@@ -613,32 +882,74 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 11. VÝSLEDOK
+    // 12. VÝSLEDOK
     // ==========================================================
 
     return WeatherIntelligenceResult(
       title: title,
       description: description,
-      confidenceText: confidenceText,
+      confidenceText:
+          confidenceText,
       confidence: confidence,
-      rainNearby: rainLikelySoon,
-      stormNearby: stormNearby,
-      rainLikelySoon: rainLikelySoon,
-      radarDistanceKm: null,
-      lightningDistanceKm: null,
-      rainProbability: rainProbability,
-      precipitation: precipitation,
-      windDirection: windDirection,
-      windSpeed: windSpeed,
-      skyBluePercent: skyBluePercent,
+
+      rainNearby:
+          rainLikelySoon,
+
+      stormNearby:
+          stormNearby,
+
+      rainLikelySoon:
+          rainLikelySoon,
+
+      radarDistanceKm:
+          null,
+
+      lightningDistanceKm:
+          null,
+
+      rainProbability:
+          rainProbability,
+
+      precipitation:
+          precipitation,
+
+      windDirection:
+          windDirection,
+
+      windSpeed:
+          windSpeed,
+
+      skyBluePercent:
+          skyBluePercent,
+
       cloudinessEstimate:
           cloudinessEstimate,
-      evidence: evidence,
+
+      cloudType:
+          cloudType,
+
+      cloudTypeShort:
+          cloudTypeShort,
+
+      cloudTypeConfidence:
+          cloudTypeConfidence,
+
+      ecmwfPrecipitation:
+          ecmwfPrecipitation,
+
+      ecmwfMaxPrecipitation6h:
+          ecmwfMaxPrecipitation6h,
+
+      ecmwfRainExpected:
+          ecmwfRainExpected,
+
+      evidence:
+          evidence,
     );
   }
 
   // ==========================================================
-  // ANALÝZA OBRAZU
+  // RGB ANALÝZA OBLOHY
   // ==========================================================
 
   SkyImageAnalysis _analyzeSkyImage(
@@ -658,11 +969,15 @@ class WeatherIntelligenceService {
     );
 
     int total = 0;
+
     int blue = 0;
+
     int dark = 0;
+
     int cloudy = 0;
 
-    double blueStrengthSum = 0;
+    double blueStrengthSum =
+        0.0;
 
     for (int y = 0;
         y < image.height;
@@ -671,7 +986,10 @@ class WeatherIntelligenceService {
           x < image.width;
           x++) {
         final pixel =
-            image.getPixel(x, y);
+            image.getPixel(
+          x,
+          y,
+        );
 
         final double r =
             pixel.r.toDouble();
@@ -701,23 +1019,33 @@ class WeatherIntelligenceService {
 
           blueStrengthSum +=
               ((b - r) / 255)
-                  .clamp(0.0, 1.0);
+                  .clamp(
+            0.0,
+            1.0,
+          );
         }
 
         final double maxChannel =
             math.max(
-              r,
-              math.max(g, b),
-            );
+          r,
+          math.max(
+            g,
+            b,
+          ),
+        );
 
         final double minChannel =
             math.min(
-              r,
-              math.min(g, b),
-            );
+          r,
+          math.min(
+            g,
+            b,
+          ),
+        );
 
         final double spread =
-            maxChannel - minChannel;
+            maxChannel -
+                minChannel;
 
         if (spread < 25 &&
             brightness > 80) {
@@ -749,9 +1077,9 @@ class WeatherIntelligenceService {
 
     cloudiness =
         cloudiness.clamp(
-          0.0,
-          100.0,
-        );
+      0.0,
+      100.0,
+    );
 
     return SkyImageAnalysis(
       blueSkyPercent:
@@ -826,9 +1154,13 @@ class WeatherIntelligenceService {
 
 class SkyImageAnalysis {
   final double blueSkyPercent;
+
   final double cloudinessPercent;
+
   final double darkPercent;
+
   final int sampleCount;
+
   final double averageBlueStrength;
 
   SkyImageAnalysis({
@@ -841,11 +1173,11 @@ class SkyImageAnalysis {
 
   factory SkyImageAnalysis.empty() {
     return SkyImageAnalysis(
-      blueSkyPercent: 0,
-      cloudinessPercent: 0,
-      darkPercent: 0,
+      blueSkyPercent: 0.0,
+      cloudinessPercent: 0.0,
+      darkPercent: 0.0,
       sampleCount: 0,
-      averageBlueStrength: 0,
+      averageBlueStrength: 0.0,
     );
   }
 }
