@@ -36,6 +36,17 @@ class SkyContextResult {
 
   final int? nextRainWeatherCode;
 
+  // Podrobny 15-minutovy odhad najblizsej zrazkovej epizody.
+  final DateTime? rainStartTime;
+  final DateTime? rainPeakTime;
+  final DateTime? rainEndTime;
+  final int? rainDurationMinutes;
+  final double? rainTotalAmount;
+  final double? rainPeakRate;
+  final double? rainArrivalWindDirection;
+  final double? rainArrivalWindSpeed;
+  final double? rainEstimatedDistanceKm;
+
   final bool rainExpectedNext6Hours;
 
   final bool ecmwfRainExpected;
@@ -62,6 +73,15 @@ class SkyContextResult {
     required this.nextRainProbability,
     required this.nextRainAmount,
     required this.nextRainWeatherCode,
+    required this.rainStartTime,
+    required this.rainPeakTime,
+    required this.rainEndTime,
+    required this.rainDurationMinutes,
+    required this.rainTotalAmount,
+    required this.rainPeakRate,
+    required this.rainArrivalWindDirection,
+    required this.rainArrivalWindSpeed,
+    required this.rainEstimatedDistanceKm,
     required this.rainExpectedNext6Hours,
     required this.ecmwfRainExpected,
     required this.ecmwfMaxRain6h,
@@ -125,6 +145,20 @@ class SkyContextResult {
 
     return false;
   }
+
+  bool get hasDetailedRainTiming =>
+      rainStartTime != null && rainDurationMinutes != null;
+
+  String get rainIntensityDescription {
+    final rate = rainPeakRate;
+    if (rate == null || rate <= 0) return 'nezistená';
+    if (rate < 0.5) return 'veľmi slabá';
+    if (rate < 2.0) return 'slabá';
+    if (rate < 5.0) return 'mierna';
+    if (rate < 15.0) return 'silná';
+    if (rate < 30.0) return 'veľmi silná';
+    return 'prívalová';
+  }
 }
 
 class SkyContextService {
@@ -165,6 +199,15 @@ class SkyContextService {
       'pressure_msl,'
       'wind_speed_10m,'
       'wind_direction_10m'
+      '&minutely_15='
+      'precipitation,'
+      'rain,'
+      'showers,'
+      'snowfall,'
+      'weather_code,'
+      'wind_speed_10m,'
+      'wind_direction_10m'
+      '&forecast_minutely_15=32'
       '&forecast_hours=18'
       '&timezone=auto',
     );
@@ -203,6 +246,9 @@ class SkyContextService {
 
     final hourly =
         decoded['hourly'];
+
+    final minutely15 =
+        decoded['minutely_15'];
 
     if (current is! Map ||
         hourly is! Map) {
@@ -419,6 +465,152 @@ class SkyContextService {
       }
     }
 
+    // ==========================================================
+    // 15-MINUTOVY DETAIL ZRAZOK
+    // ==========================================================
+
+    DateTime? rainStartTime;
+    DateTime? rainPeakTime;
+    DateTime? rainEndTime;
+    int? rainDurationMinutes;
+    double? rainTotalAmount;
+    double? rainPeakRate;
+    double? rainArrivalWindDirection;
+    double? rainArrivalWindSpeed;
+    double? rainEstimatedDistanceKm;
+
+    if (minutely15 is Map) {
+      List<DateTime> read15Times() {
+        final value = minutely15['time'];
+        if (value is! List) return [];
+        return value
+            .map((e) => DateTime.tryParse(e.toString()))
+            .whereType<DateTime>()
+            .toList();
+      }
+
+      List<double> read15DoubleList(String key) {
+        final value = minutely15[key];
+        if (value is! List) return [];
+        return value.map<double>((e) {
+          if (e is num) return e.toDouble();
+          return 0.0;
+        }).toList();
+      }
+
+      List<int> read15IntList(String key) {
+        final value = minutely15[key];
+        if (value is! List) return [];
+        return value.map<int>((e) {
+          if (e is num) return e.toInt();
+          return 0;
+        }).toList();
+      }
+
+      final t15 = read15Times();
+      final p15 = read15DoubleList('precipitation');
+      final c15 = read15IntList('weather_code');
+      final ws15 = read15DoubleList('wind_speed_10m');
+      final wd15 = read15DoubleList('wind_direction_10m');
+
+      bool wetAt(int i) {
+        final amount = i < p15.length ? p15[i] : 0.0;
+        final code = i < c15.length ? c15[i] : 0;
+        final wetCode = (code >= 51 && code <= 67) ||
+            (code >= 71 && code <= 77) ||
+            (code >= 80 && code <= 82) ||
+            (code >= 85 && code <= 86) ||
+            code == 95 || code == 96 || code == 99;
+        // 0.025 mm za 15 min ~= 0.1 mm/h. To uz povazujeme za
+        // meratelny zrazkovy signal, no ignorujeme numericky sum.
+        return amount >= 0.025 || wetCode;
+      }
+
+      int first = -1;
+      for (int i = 0; i < t15.length; i++) {
+        final intervalEnd = t15[i];
+        if (intervalEnd.isBefore(now.subtract(const Duration(minutes: 5)))) {
+          continue;
+        }
+        if (wetAt(i)) {
+          first = i;
+          break;
+        }
+      }
+
+      if (first >= 0) {
+        int last = first;
+        int dryStreak = 0;
+        double total = 0.0;
+        double maxRate = 0.0;
+        int peakIndex = first;
+
+        // Jednu suchu 15-min medzeru vo vnutri pasma tolerujeme.
+        for (int i = first; i < t15.length; i++) {
+          final wet = wetAt(i);
+          if (wet) {
+            dryStreak = 0;
+            last = i;
+            final amount = i < p15.length ? p15[i] : 0.0;
+            total += amount;
+            final rate = amount * 4.0;
+            if (rate > maxRate) {
+              maxRate = rate;
+              peakIndex = i;
+            }
+          } else {
+            dryStreak++;
+            if (dryStreak >= 2) break;
+          }
+        }
+
+        // Hodnota 15-min zrazok je sucet predchadzajucich 15 minut.
+        rainStartTime = t15[first].subtract(const Duration(minutes: 15));
+        if (rainStartTime!.isBefore(now) &&
+            now.difference(rainStartTime!).inMinutes <= 15) {
+          rainStartTime = now;
+        }
+        rainEndTime = t15[last];
+        rainPeakTime = t15[peakIndex].subtract(const Duration(minutes: 8));
+        rainDurationMinutes = math.max(
+          15,
+          rainEndTime!.difference(rainStartTime!).inMinutes,
+        );
+        rainTotalAmount = total;
+        rainPeakRate = maxRate;
+
+        if (first < wd15.length) {
+          rainArrivalWindDirection = wd15[first];
+        }
+        if (first < ws15.length) {
+          rainArrivalWindSpeed = ws15[first];
+        }
+
+        // Toto NIE JE radarova vzdialenost bunky. Je to orientacny
+        // prepocteny dosah z ETA a rychlosti prudenia pri prichode.
+        // Preto sa v UI zobrazuje ako "orientacne".
+        final etaMinutes = math.max(
+          0,
+          rainStartTime!.difference(now).inMinutes,
+        );
+        if (rainArrivalWindSpeed != null && rainArrivalWindSpeed! > 0) {
+          rainEstimatedDistanceKm =
+              rainArrivalWindSpeed! * (etaMinutes / 60.0);
+        }
+
+        // Detail 15-min dat je presnejsi pre cas zaciatku nez hodinovy
+        // signal, preto nim prepiseme ETA, ak je epizoda v horizonte.
+        nextRainTime = rainStartTime;
+        nextRainMinutes = math.max(
+          0,
+          rainStartTime!.difference(now).inMinutes,
+        );
+        if (first < c15.length) {
+          nextRainWeatherCode = c15[first];
+        }
+      }
+    }
+
     final bool ecmwfRainExpected =
         ecmwf != null
             ? ecmwf
@@ -503,6 +695,33 @@ class SkyContextService {
 
       nextRainWeatherCode:
           nextRainWeatherCode,
+
+      rainStartTime:
+          rainStartTime,
+
+      rainPeakTime:
+          rainPeakTime,
+
+      rainEndTime:
+          rainEndTime,
+
+      rainDurationMinutes:
+          rainDurationMinutes,
+
+      rainTotalAmount:
+          rainTotalAmount,
+
+      rainPeakRate:
+          rainPeakRate,
+
+      rainArrivalWindDirection:
+          rainArrivalWindDirection,
+
+      rainArrivalWindSpeed:
+          rainArrivalWindSpeed,
+
+      rainEstimatedDistanceKm:
+          rainEstimatedDistanceKm,
 
       rainExpectedNext6Hours:
           rainExpectedNext6Hours,
