@@ -1710,6 +1710,10 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _currentMetricSummary(type),
+          if (type == _MetricType.rain) ...[
+            const SizedBox(height: 12),
+            _buildDetailedRainNowcast(),
+          ],
           const SizedBox(height: 18),
           if (series.points.isNotEmpty) ...[
             Text(
@@ -1770,6 +1774,148 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildDetailedRainNowcast() {
+    final ctx = _ctx;
+    if (ctx == null) {
+      return const SizedBox.shrink();
+    }
+
+    if (!ctx.hasDetailedRainTiming) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.035),
+          borderRadius: BorderRadius.circular(17),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
+        ),
+        child: const Text(
+          'V 15-minútovom horizonte momentálne nevidím súvislú zrážkovú epizódu. Keď sa objaví, tu bude smer, intenzita, trvanie aj odhad úhrnu.',
+          style: TextStyle(color: Colors.white60, fontSize: 10.5, height: 1.45),
+        ),
+      );
+    }
+
+    final start = ctx.rainStartTime;
+    final peak = ctx.rainPeakTime;
+    final end = ctx.rainEndTime;
+    final duration = ctx.rainDurationMinutes;
+    final total = ctx.rainTotalAmount;
+    final peakRate = ctx.rainPeakRate;
+    final direction = ctx.rainArrivalWindDirection;
+    final speed = ctx.rainArrivalWindSpeed;
+    final distance = ctx.rainEstimatedDistanceKm;
+
+    final arrivalText = start == null
+        ? '—'
+        : '${SkyContextService.formatMinutes(math.max(0, start.difference(DateTime.now()).inMinutes))} • ${SkyContextService.formatClock(start)}';
+
+    String durationText = '—';
+    if (duration != null) {
+      if (duration < 60) {
+        durationText = '~$duration min';
+      } else {
+        final h = duration ~/ 60;
+        final m = duration % 60;
+        durationText = m == 0 ? '~$h h' : '~$h h $m min';
+      }
+    }
+
+    final directionText = direction == null
+        ? '—'
+        : 'z ${SkyContextService.longDirectionName(direction)} (${direction.toStringAsFixed(0)}°)';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C79AA).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF69C7F2).withOpacity(0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.radar_rounded, color: Color(0xFF69C7F2), size: 19),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Detail najbližších zrážok',
+                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF69C7F2).withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  '15 min dáta',
+                  style: TextStyle(color: Color(0xFF8DD8FA), fontSize: 8, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 11),
+          _detailRow('Príchod', arrivalText),
+          _detailRow('Odkiaľ', directionText),
+          if (speed != null)
+            _detailRow('Pohyb / vietor pri príchode', '${speed.toStringAsFixed(0)} km/h'),
+          if (distance != null && distance > 0.2)
+            _detailRow('Orientačná vzdialenosť', '~${distance.toStringAsFixed(distance < 10 ? 1 : 0)} km'),
+          _detailRow('Intenzita', '${ctx.rainIntensityDescription}${peakRate == null ? '' : ' • max ~${peakRate.toStringAsFixed(1)} mm/h'}'),
+          _detailRow('Odhad trvania', durationText),
+          _detailRow('Odhad úhrnu', total == null ? '—' : '~${total.toStringAsFixed(total < 1 ? 2 : 1)} mm'),
+          const SizedBox(height: 10),
+          _buildRainTimeline(start: start, peak: peak, end: end),
+          const SizedBox(height: 10),
+          Text(
+            'Smer a vzdialenosť sú zatiaľ orientačné podľa prúdenia pri príchode. Časy, trvanie a množstvo vychádzajú z 15-minútových zrážkových dát. Radarové sledovanie bunky doplní neskôr ešte presnejší smer a vzdialenosť.',
+            style: TextStyle(color: Colors.white.withOpacity(0.34), fontSize: 8.5, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRainTimeline({
+    required DateTime? start,
+    required DateTime? peak,
+    required DateTime? end,
+  }) {
+    if (start == null || end == null) return const SizedBox.shrink();
+
+    Widget point(IconData icon, String label, DateTime? time) {
+      return Expanded(
+        child: Column(
+          children: [
+            Icon(icon, color: const Color(0xFF69C7F2), size: 16),
+            const SizedBox(height: 5),
+            Text(
+              time == null ? '—' : SkyContextService.formatClock(time),
+              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(color: Colors.white38, fontSize: 8)),
+          ],
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        point(Icons.water_drop_outlined, 'začiatok', start),
+        Container(width: 18, height: 1, color: Colors.white12),
+        point(Icons.water_drop_rounded, 'maximum', peak),
+        Container(width: 18, height: 1, color: Colors.white12),
+        point(Icons.check_circle_outline_rounded, 'koniec', end),
+      ],
     );
   }
 
