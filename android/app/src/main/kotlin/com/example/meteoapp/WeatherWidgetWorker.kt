@@ -28,6 +28,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
             val merged = old.copy(
                 temperature = weather.temperature,
                 apparentTemperature = weather.apparentTemperature,
+                weatherCode = weather.weatherCode,
                 precipProbability = weather.precipProbability,
                 nextRainMinutes = weather.nextRainMinutes,
                 rainTotalMm = weather.rainTotalMm,
@@ -54,13 +55,14 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
 
     private fun fetchWeather(lat: Double, lng: Double): ModelWeather {
         val url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lng" +
-            "&current=temperature_2m,apparent_temperature" +
+            "&current=temperature_2m,apparent_temperature,weather_code" +
             "&hourly=precipitation_probability&forecast_hours=6" +
             "&minutely_15=precipitation&forecast_minutely_15=16&timezone=auto"
         val json = JSONObject(getText(url))
         val current = json.getJSONObject("current")
         val temp = current.optDouble("temperature_2m", Double.NaN).takeUnless { it.isNaN() }
         val apparent = current.optDouble("apparent_temperature", Double.NaN).takeUnless { it.isNaN() }
+        val weatherCode = if (current.has("weather_code")) current.optInt("weather_code") else null
         val probs = json.optJSONObject("hourly")?.optJSONArray("precipitation_probability")
         val probability = if (probs != null && probs.length() > 0 && !probs.isNull(0)) probs.optInt(0) else null
         val arr = json.optJSONObject("minutely_15")?.optJSONArray("precipitation")
@@ -73,7 +75,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
                 if (next == null && mm >= 0.025) next = i * 15
             }
         }
-        return ModelWeather(temp, apparent, probability, next, total)
+        return ModelWeather(temp, apparent, weatherCode, probability, next, total)
     }
 
     private fun fetchRadar(lat: Double, lng: Double): RadarResult {
@@ -229,7 +231,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
     } catch (_: Exception) { null }
 }
 
-data class ModelWeather(val temperature: Double?, val apparentTemperature: Double?, val precipProbability: Int?, val nextRainMinutes: Int?, val rainTotalMm: Double?)
+data class ModelWeather(val temperature: Double?, val apparentTemperature: Double?, val weatherCode: Int?, val precipProbability: Int?, val nextRainMinutes: Int?, val rainTotalMm: Double?)
 data class RadarResult(
     val detected: Boolean,
     val distanceKm: Double?,
