@@ -3,13 +3,6 @@
     android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
     android:background="@android:color/transparent">
 
-    <ImageView
-        android:id="@+id/widget_weather_background"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:alpha="0.88"
-        android:scaleType="centerCrop" />
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -18,12 +11,12 @@
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
-            <TextView android:id="@+id/widget_clock" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="18:24" android:textColor="#FFFFFF" android:textSize="31sp" android:textStyle="bold" />
-            <TextView android:id="@+id/widget_location" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="1" android:text="Nové Mesto nad Váhom" android:textColor="#A8EFFF" android:textSize="11sp" />
+            <TextView android:id="@+id/widget_clock" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="18:24" android:textColor="#FFFFFF" android:textSize="33sp" android:textStyle="bold" android:shadowColor="#FF000000" android:shadowDx="0" android:shadowDy="3" android:shadowRadius="5" />
+            <TextView android:id="@+id/widget_location" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="1" android:text="Nové Mesto nad Váhom" android:textColor="#D5F7FF" android:textSize="12sp" android:textStyle="bold" android:shadowColor="#FF000000" android:shadowDx="0" android:shadowDy="2" android:shadowRadius="4" />
         </LinearLayout>
         <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:gravity="end" android:orientation="vertical">
-            <TextView android:id="@+id/widget_temp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="21°" android:textColor="#FFFFFF" android:textSize="29sp" android:textStyle="bold" />
-            <TextView android:id="@+id/widget_feels" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pocitovo 20°" android:textColor="#9DB5C9" android:textSize="10sp" />
+            <TextView android:id="@+id/widget_temp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="21°" android:textColor="#FFFFFF" android:textSize="31sp" android:textStyle="bold" android:shadowColor="#FF000000" android:shadowDx="0" android:shadowDy="3" android:shadowRadius="5" />
+            <TextView android:id="@+id/widget_feels" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pocitovo 20°" android:textColor="#D7E8F2" android:textSize="11sp" android:textStyle="bold" android:shadowColor="#FF000000" android:shadowDx="0" android:shadowDy="2" android:shadowRadius="4" />
         </LinearLayout>
         <TextView android:id="@+id/widget_refresh" android:layout_width="38dp" android:layout_height="38dp" android:layout_marginStart="7dp" android:gravity="center" android:text="↻" android:textColor="#91F1FF" android:textSize="24sp" android:background="@drawable/widget_chip" />
     </LinearLayout>
@@ -31,13 +24,13 @@
     <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="4dp">
         <ImageView android:id="@+id/widget_orb" android:layout_width="match_parent" android:layout_height="match_parent" android:adjustViewBounds="true" android:scaleType="fitCenter" />
         <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|end" android:orientation="vertical" android:gravity="end" android:paddingTop="5dp" android:paddingEnd="3dp">
-            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ZRÁŽKY V TVOJEJ POLOHE" android:textColor="#8FAABD" android:textSize="8sp" />
-            <TextView android:id="@+id/widget_probability" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="78 %" android:textColor="#72EDFF" android:textSize="22sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ZRÁŽKY V TVOJEJ POLOHE" android:textColor="#E6F7FF" android:textSize="9sp" android:textStyle="bold" android:shadowColor="#FF000000" android:shadowDx="0" android:shadowDy="2" android:shadowRadius="4" />
+            <TextView android:id="@+id/widget_probability" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="78 %" android:textColor="#82F3FF" android:textSize="24sp" android:textStyle="bold" android:shadowColor="#FF000000" android:shadowDx="0" android:shadowDy="3" android:shadowRadius="5" />
         </LinearLayout>
     </FrameLayout>
 
-    <TextView android:id="@+id/widget_eta" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="DÁŽĎ ZA 17 MIN" android:textColor="#FFFFFF" android:textSize="17sp" android:textStyle="bold" android:paddingTop="1dp" />
-    <TextView android:id="@+id/widget_source" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="RADAR • RainViewer" android:textColor="#6CDDF2" android:textSize="8sp" />
+    <TextView android:id="@+id/widget_eta" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="DÁŽĎ ZA 17 MIN" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" android:paddingTop="1dp" android:shadowColor="#FF000000" android:shadowDx="0" android:shadowDy="3" android:shadowRadius="5" />
+    <TextView android:id="@+id/widget_source" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="RADAR • RainViewer" android:textColor="#9EF3FF" android:textSize="9sp" android:textStyle="bold" android:shadowColor="#FF000000" android:shadowDx="0" android:shadowDy="2" android:shadowRadius="4" />
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="5dp">
         <TextView android:id="@+id/widget_distance" style="@style/WidgetMetric" android:text="8.4 km" />
@@ -45,6 +38,6 @@
         <TextView android:id="@+id/widget_direction" style="@style/WidgetMetric" android:gravity="center" android:text="SZ" />
         <TextView android:id="@+id/widget_total" style="@style/WidgetMetric" android:gravity="end" android:text="3.1 mm" />
     </LinearLayout>
-    <TextView android:id="@+id/widget_updated" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="end" android:text="Aktualizované 18:24" android:textColor="#708CA2" android:textSize="8sp" />
+    <TextView android:id="@+id/widget_updated" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="end" android:text="Aktualizované 18:24" android:textColor="#D5E8F2" android:textSize="9sp" android:textStyle="bold" android:shadowColor="#FF000000" android:shadowDx="0" android:shadowDy="2" android:shadowRadius="4" />
     </LinearLayout>
 </FrameLayout>
