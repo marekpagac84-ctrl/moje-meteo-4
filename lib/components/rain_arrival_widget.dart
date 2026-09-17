@@ -420,29 +420,35 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
   Widget build(BuildContext context) {
     return Column(
       children: [
-        StormOrbWidget(
-          intelligence: _weatherIntelligence,
-          temperature: _temperature,
-          apparentTemperature: _apparentTemperature,
-          locationName: 'Moja GPS poloha',
-          heading: _heading,
-          rainProbability: (_ctx?.nextRainProbability ??
-                  _currentHourlyValue(_meteo?.hourlyPrecipitationProbability))
-              ?.round(),
-          rainTotalMm: _ctx?.rainTotalAmount,
-          updatedAt: _weatherIntelligenceUpdatedAt,
-          onRefresh: _refreshEverything,
-          onRadar: widget.onOpenMap,
-          onAiSky: _analyzeSky,
-          onDetail: _showCurrentWeatherDetail,
-          onMap: widget.onOpenMap,
-        ),
-        const SizedBox(height: 12),
+        // PÔVODNÝ Living Weather hero zostáva presne zachovaný.
+        _buildHero(),
         Transform.translate(
           offset: const Offset(0, -18),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: _buildAiBanner(),
+          ),
+        ),
+        // NOVÉ: Storm Orb je samostatná pridaná karta.
+        // Nenahrádza ani nemení pôvodný Living Weather hero.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+          child: StormOrbWidget(
+            intelligence: _weatherIntelligence,
+            temperature: _temperature,
+            apparentTemperature: _apparentTemperature,
+            locationName: 'Moja GPS poloha',
+            heading: _heading,
+            rainProbability: (_ctx?.nextRainProbability ??
+                    _currentHourlyValue(_meteo?.hourlyPrecipitationProbability))
+                ?.round(),
+            rainTotalMm: _ctx?.rainTotalAmount,
+            updatedAt: _weatherIntelligenceUpdatedAt,
+            onRefresh: _refreshEverything,
+            onRadar: widget.onOpenMap,
+            onAiSky: _analyzeSky,
+            onDetail: _showCurrentWeatherDetail,
+            onMap: widget.onOpenMap,
           ),
         ),
         if (_error != null) ...[
