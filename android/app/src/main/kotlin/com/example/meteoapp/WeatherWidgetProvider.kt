@@ -57,7 +57,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 if (d.radarDetected) "LIVE RADAR • ISTOTA ${(d.radarConfidence * 100).roundToInt()} % • RainViewer"
                 else "RADAR • ${d.radarStatus}"
             )
-            rv.setImageViewBitmap(R.id.widget_weather_background, drawWeatherBackground(d))
             rv.setImageViewBitmap(R.id.widget_orb, drawCinematicOrb(context, d))
 
             val refresh = Intent(context, WeatherWidgetProvider::class.java).apply { action = ACTION_REFRESH }
