@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="12dp" android:background="@drawable/widget_background">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+            <TextView android:id="@+id/widget_clock" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="18:24" android:textColor="#FFFFFF" android:textSize="31sp" android:textStyle="bold" />
+            <TextView android:id="@+id/widget_location" android:layout_width="wrap_content" android:layout_height="wrap_content" android:maxLines="1" android:text="Nové Mesto nad Váhom" android:textColor="#A8EFFF" android:textSize="11sp" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:gravity="end" android:orientation="vertical">
+            <TextView android:id="@+id/widget_temp" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="21°" android:textColor="#FFFFFF" android:textSize="29sp" android:textStyle="bold" />
+            <TextView android:id="@+id/widget_feels" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Pocitovo 20°" android:textColor="#9DB5C9" android:textSize="10sp" />
+        </LinearLayout>
+        <TextView android:id="@+id/widget_refresh" android:layout_width="38dp" android:layout_height="38dp" android:layout_marginStart="7dp" android:gravity="center" android:text="↻" android:textColor="#91F1FF" android:textSize="24sp" android:background="@drawable/widget_chip" />
+    </LinearLayout>
+
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="4dp">
+        <ImageView android:id="@+id/widget_orb" android:layout_width="match_parent" android:layout_height="match_parent" android:adjustViewBounds="true" android:scaleType="fitCenter" />
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="top|end" android:orientation="vertical" android:gravity="end" android:paddingTop="5dp" android:paddingEnd="3dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="ZRÁŽKY V TVOJEJ POLOHE" android:textColor="#8FAABD" android:textSize="8sp" />
+            <TextView android:id="@+id/widget_probability" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="78 %" android:textColor="#72EDFF" android:textSize="22sp" android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <TextView android:id="@+id/widget_eta" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="DÁŽĎ ZA 17 MIN" android:textColor="#FFFFFF" android:textSize="17sp" android:textStyle="bold" android:paddingTop="1dp" />
+    <TextView android:id="@+id/widget_source" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:text="RADAR • RainViewer" android:textColor="#6CDDF2" android:textSize="8sp" />
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="5dp">
+        <TextView android:id="@+id/widget_distance" style="@style/WidgetMetric" android:text="8.4 km" />
+        <TextView android:id="@+id/widget_speed" style="@style/WidgetMetric" android:gravity="center" android:text="31 km/h" />
+        <TextView android:id="@+id/widget_direction" style="@style/WidgetMetric" android:gravity="center" android:text="SZ" />
+        <TextView android:id="@+id/widget_total" style="@style/WidgetMetric" android:gravity="end" android:text="3.1 mm" />
+    </LinearLayout>
+    <TextView android:id="@+id/widget_updated" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="end" android:text="Aktualizované 18:24" android:textColor="#708CA2" android:textSize="8sp" />
+</LinearLayout>
