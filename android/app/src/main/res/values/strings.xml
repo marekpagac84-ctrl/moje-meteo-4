@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Moje Meteo</string>
+    <string name="widget_description">Storm Orb – živý radar, ETA zrážok a pravdepodobnosť dažďa.</string>
+</resources>

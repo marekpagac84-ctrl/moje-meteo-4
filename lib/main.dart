@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:sensors_plus/sensors_plus.dart';
@@ -60,6 +61,7 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
+  static const MethodChannel _widgetChannel = MethodChannel('moje_meteo/widget');
   // ==========================================================
   // NASTAVENIA
   // ==========================================================
@@ -217,6 +219,16 @@ class _MainScreenState extends State<MainScreen> {
             _lng = position.longitude;
             _locationName = 'Moja GPS poloha';
           });
+
+          try {
+            await _widgetChannel.invokeMethod('updateLocation', {
+              'lat': _lat,
+              'lng': _lng,
+              'name': _locationName,
+            });
+          } catch (e) {
+            debugPrint('Widget location sync error: $e');
+          }
         }
       }
     } catch (e) {

@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import '../models/meteo_data.dart';
 import 'cloud_classifier_service.dart';
 import 'ecmwf_service.dart';
+import 'radar_tracking_service.dart';
 
 class WeatherIntelligenceResult {
   final String title;
@@ -79,6 +80,9 @@ class WeatherIntelligenceService {
   final EcmwfService _ecmwfService =
       EcmwfService();
 
+  final RadarTrackingService _radarTrackingService =
+      RadarTrackingService();
+
   Future<WeatherIntelligenceResult> analyze({
     required double lat,
     required double lng,
@@ -121,6 +125,9 @@ class WeatherIntelligenceService {
     double? ecmwfMaxPrecipitation6h;
 
     bool? ecmwfRainExpected;
+
+    RadarTrackingResult radar =
+        const RadarTrackingResult.unavailable('Radar ešte nebol načítaný');
 
     // ==========================================================
     // 1. OPEN-METEO
@@ -389,7 +396,46 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 4. BAROMETER
+    // 4. REAL RADAR TRACKING
+    // ==========================================================
+
+    try {
+      radar = await _radarTrackingService.track(
+        latitude: lat,
+        longitude: lng,
+      );
+
+      if (radar.available) {
+        evidence.add(radar.status);
+
+        if (radar.distanceKm != null) {
+          evidence.add(
+            'Radar: najbližšia hrana zrážok je približne '
+            '${radar.distanceKm!.toStringAsFixed(radar.distanceKm! < 10 ? 1 : 0)} km.',
+          );
+        }
+
+        if (radar.etaMinutes != null) {
+          rainLikelySoon = true;
+          score += 0.24 * radar.confidence;
+          evidence.add(
+            'Radarová dráha pretína tvoju polohu; ETA približne ${radar.etaMinutes} min.',
+          );
+        } else if (radar.movingTowardUser) {
+          score += 0.08 * radar.confidence;
+        }
+
+        if ((radar.intensityScore ?? 0) >= 0.70 && radar.etaMinutes != null) {
+          stormNearby = true;
+          score += 0.08;
+        }
+      }
+    } catch (e) {
+      evidence.add('Radarový tracking sa nepodarilo načítať.');
+    }
+
+    // ==========================================================
+    // 5. BAROMETER
     // ==========================================================
 
     if (pressure > 0) {
@@ -902,7 +948,7 @@ class WeatherIntelligenceService {
           rainLikelySoon,
 
       radarDistanceKm:
-          null,
+          radar.distanceKm,
 
       lightningDistanceKm:
           null,

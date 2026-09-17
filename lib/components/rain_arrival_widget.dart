@@ -1809,6 +1809,12 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
     final speed = ctx.rainArrivalWindSpeed;
     final distance = ctx.rainEstimatedDistanceKm;
 
+    final radarDistance = ctx.radarDistanceKm;
+    final radarBearing = ctx.radarBearingFromUser;
+    final radarMotion = ctx.radarMotionDirection;
+    final radarSpeed = ctx.radarSpeedKmh;
+    final radarEta = ctx.radarEtaMinutes;
+
     final arrivalText = start == null
         ? '—'
         : '${SkyContextService.formatMinutes(math.max(0, start.difference(DateTime.now()).inMinutes))} • ${SkyContextService.formatClock(start)}';
@@ -1855,20 +1861,44 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
                   color: const Color(0xFF69C7F2).withOpacity(0.10),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Text(
-                  '15 min dáta',
-                  style: TextStyle(color: Color(0xFF8DD8FA), fontSize: 8, fontWeight: FontWeight.w800),
+                child: Text(
+                  ctx.radarTrackingAvailable ? 'RADAR + 15 min' : '15 min dáta',
+                  style: const TextStyle(color: Color(0xFF8DD8FA), fontSize: 8, fontWeight: FontWeight.w800),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 11),
-          _detailRow('Príchod', arrivalText),
-          _detailRow('Odkiaľ', directionText),
-          if (speed != null)
-            _detailRow('Pohyb / vietor pri príchode', '${speed.toStringAsFixed(0)} km/h'),
-          if (distance != null && distance > 0.2)
-            _detailRow('Orientačná vzdialenosť', '~${distance.toStringAsFixed(distance < 10 ? 1 : 0)} km'),
+          _detailRow('Modelový príchod', arrivalText),
+          if (ctx.radarTrackingAvailable && radarDistance != null) ...[
+            _detailRow(
+              'Radar • najbližšia hrana',
+              '${radarDistance.toStringAsFixed(radarDistance < 10 ? 1 : 0)} km${radarBearing == null ? '' : ' • ${SkyContextService.longDirectionName(radarBearing)}'}',
+            ),
+            if (radarSpeed != null && radarMotion != null)
+              _detailRow(
+                'Radar • skutočný pohyb',
+                '${radarSpeed.toStringAsFixed(0)} km/h → ${SkyContextService.longDirectionName(radarMotion)} (${radarMotion.toStringAsFixed(0)}°)',
+              ),
+            _detailRow(
+              'Radar • zásah polohy',
+              radarEta != null
+                  ? '~$radarEta min • dráha smeruje k tebe'
+                  : (ctx.radarMovingTowardUser
+                      ? 'približuje sa, zásah zatiaľ neistý'
+                      : 'aktuálna dráha nemieri k tebe'),
+            ),
+            _detailRow(
+              'Radar • istota trackingu',
+              '${(ctx.radarConfidence * 100).round()} %',
+            ),
+          ] else ...[
+            _detailRow('Model • odkiaľ', directionText),
+            if (speed != null)
+              _detailRow('Model • vietor pri príchode', '${speed.toStringAsFixed(0)} km/h'),
+            if (distance != null && distance > 0.2)
+              _detailRow('Model • orientačná vzdialenosť', '~${distance.toStringAsFixed(distance < 10 ? 1 : 0)} km'),
+          ],
           _detailRow('Intenzita', '${ctx.rainIntensityDescription}${peakRate == null ? '' : ' • max ~${peakRate.toStringAsFixed(1)} mm/h'}'),
           _detailRow('Odhad trvania', durationText),
           _detailRow('Odhad úhrnu', total == null ? '—' : '~${total.toStringAsFixed(total < 1 ? 2 : 1)} mm'),
@@ -1876,7 +1906,9 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
           _buildRainTimeline(start: start, peak: peak, end: end),
           const SizedBox(height: 10),
           Text(
-            'Smer a vzdialenosť sú zatiaľ orientačné podľa prúdenia pri príchode. Časy, trvanie a množstvo vychádzajú z 15-minútových zrážkových dát. Radarové sledovanie bunky doplní neskôr ešte presnejší smer a vzdialenosť.',
+            ctx.radarTrackingAvailable
+                ? '${ctx.radarStatus} Radarová vzdialenosť a pohyb vznikajú porovnaním posledných radarových snímok; čas, trvanie a úhrn ostávajú kombinované s 15-minútovou predpoveďou.'
+                : 'Radarový tracking je teraz nedostupný. Smer a vzdialenosť sú preto orientačné podľa prúdenia pri príchode; časy, trvanie a množstvo vychádzajú z 15-minútových zrážkových dát.',
             style: TextStyle(color: Colors.white.withOpacity(0.34), fontSize: 8.5, height: 1.4),
           ),
         ],

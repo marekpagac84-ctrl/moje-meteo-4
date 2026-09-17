@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 
 import 'ecmwf_service.dart';
+import 'radar_tracking_service.dart';
 
 class SkyContextResult {
   final DateTime generatedAt;
@@ -47,6 +48,19 @@ class SkyContextResult {
   final double? rainArrivalWindSpeed;
   final double? rainEstimatedDistanceKm;
 
+  // Skutocne pozorovanie z viacerych radarovych snimok.
+  final bool radarTrackingAvailable;
+  final DateTime? radarObservationTime;
+  final double? radarDistanceKm;
+  final double? radarBearingFromUser;
+  final double? radarMotionDirection;
+  final double? radarSpeedKmh;
+  final int? radarEtaMinutes;
+  final double? radarClosestApproachKm;
+  final double radarConfidence;
+  final bool radarMovingTowardUser;
+  final String radarStatus;
+
   final bool rainExpectedNext6Hours;
 
   final bool ecmwfRainExpected;
@@ -82,6 +96,17 @@ class SkyContextResult {
     required this.rainArrivalWindDirection,
     required this.rainArrivalWindSpeed,
     required this.rainEstimatedDistanceKm,
+    required this.radarTrackingAvailable,
+    required this.radarObservationTime,
+    required this.radarDistanceKm,
+    required this.radarBearingFromUser,
+    required this.radarMotionDirection,
+    required this.radarSpeedKmh,
+    required this.radarEtaMinutes,
+    required this.radarClosestApproachKm,
+    required this.radarConfidence,
+    required this.radarMovingTowardUser,
+    required this.radarStatus,
     required this.rainExpectedNext6Hours,
     required this.ecmwfRainExpected,
     required this.ecmwfMaxRain6h,
@@ -168,6 +193,9 @@ class SkyContextService {
   final EcmwfService _ecmwf =
       EcmwfService();
 
+  final RadarTrackingService _radar =
+      RadarTrackingService();
+
   Future<SkyContextResult> load({
     required double latitude,
     required double longitude,
@@ -218,6 +246,10 @@ class SkyContextService {
         latitude: latitude,
         longitude: longitude,
       ),
+      _radar.track(
+        latitude: latitude,
+        longitude: longitude,
+      ),
     ]);
 
     final http.Response response =
@@ -225,6 +257,9 @@ class SkyContextService {
 
     final dynamic ecmwf =
         results[1];
+
+    final RadarTrackingResult radar =
+        results[2] as RadarTrackingResult;
 
     if (response.statusCode != 200) {
       throw Exception(
@@ -722,6 +757,39 @@ class SkyContextService {
 
       rainEstimatedDistanceKm:
           rainEstimatedDistanceKm,
+
+      radarTrackingAvailable:
+          radar.available,
+
+      radarObservationTime:
+          radar.radarTime,
+
+      radarDistanceKm:
+          radar.distanceKm,
+
+      radarBearingFromUser:
+          radar.bearingFromUser,
+
+      radarMotionDirection:
+          radar.motionDirection,
+
+      radarSpeedKmh:
+          radar.speedKmh,
+
+      radarEtaMinutes:
+          radar.etaMinutes,
+
+      radarClosestApproachKm:
+          radar.closestApproachKm,
+
+      radarConfidence:
+          radar.confidence,
+
+      radarMovingTowardUser:
+          radar.movingTowardUser,
+
+      radarStatus:
+          radar.status,
 
       rainExpectedNext6Hours:
           rainExpectedNext6Hours,

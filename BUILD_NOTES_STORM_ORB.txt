@@ -1,0 +1,19 @@
+MOJE METEO – STORM ORB + WEATHER INTELLIGENCE
+
+Doplnené:
+- Android 4x4 Storm Orb widget (resizable).
+- Veľké hodiny, teplota, pocitová teplota.
+- Pravdepodobnosť zrážok presne pre uloženú GPS polohu.
+- Skutočný RainViewer radar v kruhovom „orb“ zobrazení.
+- Smer, odkiaľ prichádzajú zrážky vzhľadom na polohu.
+- Radarová vzdialenosť, pozorovaný pohyb a ETA.
+- Automatická aktualizácia cez WorkManager (Android minimum 15 min; widget provider 30 min fallback).
+- Inteligentná notifikácia iba ak radarová stopa smeruje k polohe, confidence >= 62 %, ETA <= 60 min.
+- Anti-spam: opakovanie až po 45 min alebo pri podstatnej zmene ETA.
+- WeatherIntelligenceService už používa RadarTrackingService namiesto radarDistanceKm=null.
+- GPS poloha z Flutter aplikácie sa synchronizuje do natívneho widgetu.
+
+Dôležité technické obmedzenie Android widgetov:
+Štandardný launcher widget nie je živé Flutter plátno. Preto sa jeho 3D orb neotáča plynulo podľa kompasu pri fyzickom otáčaní telefónu. Widget zobrazuje reálny geografický smer zrážok (S/SV/V/...), radar a ETA. Plynulé otáčanie podľa kompasu patrí do otvorenej aplikácie, kde sú senzory aktívne. Neustále držanie senzorovej služby na pozadí by výrazne zvyšovalo spotrebu a Android ho obmedzuje.
+
+Radarový zdroj v tejto prototypovej verzii: RainViewer public API. Pred komerčným vydaním treba vyriešiť komerčné podmienky alebo vymeniť provider.
