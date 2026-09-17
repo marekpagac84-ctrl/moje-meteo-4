@@ -10,6 +10,8 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../models/meteo_data.dart';
 import '../services/cloud_classifier_service.dart';
 import '../services/sky_context_service.dart';
+import '../services/weather_intelligence_service.dart';
+import 'storm_orb_widget.dart';
 import 'weather_scene_background.dart';
 
 class RainArrivalWidget extends StatefulWidget {
@@ -35,12 +37,15 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
   final SkyContextService _contextService = SkyContextService();
   final CloudClassifierService _cloudClassifier = CloudClassifierService();
   final ImagePicker _picker = ImagePicker();
+  final WeatherIntelligenceService _weatherIntelligenceService = WeatherIntelligenceService();
 
   StreamSubscription<BarometerEvent>? _barometerSub;
   StreamSubscription<MagnetometerEvent>? _magnetometerSub;
   late final AnimationController _sceneController;
 
   SkyContextResult? _context;
+  WeatherIntelligenceResult? _weatherIntelligence;
+  DateTime? _weatherIntelligenceUpdatedAt;
   Position? _position;
 
   double? _devicePressure;
@@ -155,12 +160,41 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
         _contextLoading = false;
         _recalculateAltitude();
       });
+
+      await _loadWeatherIntelligence(position, result);
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _contextLoading = false;
         _error = e.toString().replaceFirst('Exception: ', '');
       });
+    }
+  }
+
+  Future<void> _loadWeatherIntelligence(
+    Position position,
+    SkyContextResult context,
+  ) async {
+    try {
+      final intelligence = await _weatherIntelligenceService.analyze(
+        lat: position.latitude,
+        lng: position.longitude,
+        pressure: _devicePressure ?? context.surfacePressure,
+        pressureChangeRate: 0.0,
+        heading: _heading,
+        tiltX: 0.0,
+        tiltY: 0.0,
+        meteoData: widget.meteoData,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _weatherIntelligence = intelligence;
+        _weatherIntelligenceUpdatedAt = DateTime.now();
+      });
+    } catch (_) {
+      // Radar/Weather Intelligence je doplnková vrstva.
+      // Ak zlyhá sieť alebo radarový zdroj, pôvodné Meteo UI ostane funkčné.
     }
   }
 
@@ -386,7 +420,24 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _buildHero(),
+        StormOrbWidget(
+          intelligence: _weatherIntelligence,
+          temperature: _temperature,
+          apparentTemperature: _apparentTemperature,
+          locationName: 'Moja GPS poloha',
+          heading: _heading,
+          rainProbability: (_ctx?.nextRainProbability ??
+                  _currentHourlyValue(_meteo?.hourlyPrecipitationProbability))
+              ?.round(),
+          rainTotalMm: _ctx?.rainTotalAmount,
+          updatedAt: _weatherIntelligenceUpdatedAt,
+          onRefresh: _refreshEverything,
+          onRadar: widget.onOpenMap,
+          onAiSky: _analyzeSky,
+          onDetail: _showCurrentWeatherDetail,
+          onMap: widget.onOpenMap,
+        ),
+        const SizedBox(height: 12),
         Transform.translate(
           offset: const Offset(0, -18),
           child: Padding(
