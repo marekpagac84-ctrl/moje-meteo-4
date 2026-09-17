@@ -57,6 +57,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 if (d.radarDetected) "LIVE RADAR • ISTOTA ${(d.radarConfidence * 100).roundToInt()} % • RainViewer"
                 else "RADAR • ${d.radarStatus}"
             )
+            rv.setImageViewBitmap(R.id.widget_weather_effects, drawWeatherEffects(d))
             rv.setImageViewBitmap(R.id.widget_orb, drawCinematicOrb(context, d))
 
             val refresh = Intent(context, WeatherWidgetProvider::class.java).apply { action = ACTION_REFRESH }
@@ -177,7 +178,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             return out
         }
 
-        private fun drawWeatherBackground(d: WidgetWeatherData): Bitmap {
+        private fun drawWeatherEffects(d: WidgetWeatherData): Bitmap {
             val w = 900; val h = 900
             val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             val c = Canvas(out); val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -187,56 +188,55 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val storm = code in listOf(95, 96, 99)
             val rain = code in listOf(51,53,55,56,57,61,63,65,66,67,80,81,82)
             val snow = code in listOf(71,73,75,77,85,86)
+            val fog = code == 45 || code == 48
             val clear = code <= 1
-            val colors = when {
-                storm -> intArrayOf(0xFF080817.toInt(), 0xFF1C203A.toInt(), 0xFF061522.toInt())
-                rain -> intArrayOf(0xFF071B2B.toInt(), 0xFF16465A.toInt(), 0xFF08141E.toInt())
-                snow -> intArrayOf(0xFF1D3348.toInt(), 0xFF7896AA.toInt(), 0xFF142332.toInt())
-                night -> intArrayOf(0xFF071126.toInt(), 0xFF132957.toInt(), 0xFF07111D.toInt())
-                clear -> intArrayOf(0xFF1169A5.toInt(), 0xFF47B9D6.toInt(), 0xFF143A62.toInt())
-                else -> intArrayOf(0xFF18364D.toInt(), 0xFF52798A.toInt(), 0xFF102332.toInt())
+            fun glow(x: Float, y: Float, radius: Float, centre: Int) {
+                p.shader = RadialGradient(x, y, radius, intArrayOf(centre, Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
+                c.drawCircle(x, y, radius, p); p.shader = null
             }
-            // Borderless atmosphere: colour is strongest in the centre and fades
-            // completely before the Android widget bounds.
-            p.shader = RadialGradient(w*.5f, h*.48f, w*.70f,
-                intArrayOf(colors[1], colors[0], Color.TRANSPARENT),
-                floatArrayOf(0f,.58f,1f), Shader.TileMode.CLAMP)
-            c.drawOval(RectF(12f,12f,w-12f,h-12f),p); p.shader=null
-
-            val lightX = if (night) 705f else 690f; val lightY = 130f
-            p.shader = RadialGradient(lightX, lightY, 210f,
-                if (night) intArrayOf(0x99DDE8FF.toInt(),0x225D78C8,Color.TRANSPARENT)
-                else intArrayOf(0xFFFFF1B0.toInt(),0x44FFD66E,Color.TRANSPARENT),
-                null, Shader.TileMode.CLAMP)
-            c.drawCircle(lightX,lightY,210f,p); p.shader=null
-            p.color = if(night) 0xFFDCE8FF.toInt() else 0xFFFFE79A.toInt(); c.drawCircle(lightX,lightY,34f,p)
-
-            if (night) {
-                p.color=0x99FFFFFF.toInt()
-                for(i in 0 until 28) c.drawCircle(((i*137)%w).toFloat(), (35+(i*83)%330).toFloat(), if(i%5==0) 2.2f else 1.1f,p)
+            fun cloud(x: Float, y: Float, scale: Float, dark: Boolean) {
+                p.shader = LinearGradient(x, y-85*scale, x, y+75*scale,
+                    if (dark) intArrayOf(0xCC26394C.toInt(),0xB0101C2A.toInt(),0x55101A25)
+                    else intArrayOf(0xDDE9F4FA.toInt(),0xAA9FB8C7.toInt(),0x554A6677), null, Shader.TileMode.CLAMP)
+                p.setShadowLayer(28f*scale,0f,16f*scale,0x88000000.toInt())
+                c.drawCircle(x-78*scale,y+10*scale,58*scale,p); c.drawCircle(x-25*scale,y-28*scale,78*scale,p)
+                c.drawCircle(x+58*scale,y-5*scale,66*scale,p); c.drawCircle(x+112*scale,y+22*scale,47*scale,p)
+                c.drawRoundRect(RectF(x-132*scale,y+12*scale,x+158*scale,y+78*scale),38*scale,38*scale,p)
+                p.clearShadowLayer(); p.shader=null; p.color=if(dark) 0x223CCBFF else 0x44FFFFFF
+                c.drawOval(RectF(x-95*scale,y-55*scale,x+92*scale,y+13*scale),p)
+            }
+            if (clear && night) {
+                glow(690f,135f,150f,0x556FAEFF); p.color=0xFFF2F5FF.toInt(); c.drawCircle(690f,135f,39f,p)
+                p.color=0xFF18263C.toInt(); c.drawCircle(710f,119f,38f,p)
+                for(i in 0 until 44) { val x=(30+(i*157)%840).toFloat(); val y=(35+(i*79)%360).toFloat()
+                    glow(x,y,if(i%7==0)10f else 5f,if(i%7==0)0xAAFFFFFF.toInt() else 0x77BCEBFF)
+                    p.color=Color.WHITE; c.drawCircle(x,y,if(i%7==0)2.6f else 1.3f,p) }
+            } else if (clear) {
+                glow(700f,130f,215f,0x77FFD76A); p.color=0xFFFFF0A5.toInt(); c.drawCircle(700f,130f,43f,p)
+                p.color=0x55FFE596; p.strokeWidth=5f
+                for(i in 0 until 12) { val a=i*Math.PI/6; c.drawLine(700f,130f,(700+cos(a)*155).toFloat(),(130+sin(a)*155).toFloat(),p) }
             }
             val cloudAmount = d.cloudCover ?: if (clear) 10 else 65
-            if (cloudAmount >= 25 || rain || snow || storm) {
-                fun cloud(x:Float,y:Float,s:Float,a:Int) {
-                    p.color=Color.argb(a,205,224,232)
-                    c.drawCircle(x,y,62*s,p); c.drawCircle(x+65*s,y+15*s,48*s,p); c.drawCircle(x-62*s,y+20*s,43*s,p)
-                    c.drawRoundRect(RectF(x-105*s,y+15*s,x+118*s,y+76*s),35*s,35*s,p)
-                }
-                val alpha = (25 + cloudAmount * .55).roundToInt().coerceIn(25,82)
-                cloud(155f,185f,1.15f, if(storm) alpha/2 else alpha)
-                if (cloudAmount >= 60) cloud(710f,310f,.9f,if(storm) alpha/2 else alpha)
+            if (!fog && (cloudAmount >= 25 || rain || snow || storm)) {
+                cloud(160f,150f,1.02f,rain||storm)
+                if(cloudAmount>=60 || rain || storm) cloud(700f,230f,.82f,rain||storm)
             }
             if (rain || storm) {
-                p.color=0x448CEBFF; p.strokeWidth=3f
-                for(i in 0 until 44) { val x=((i*97)%w).toFloat(); val y=(300+(i*61)%560).toFloat(); c.drawLine(x,y,x-16,y+52,p) }
+                glow(450f,410f,390f,if(storm)0x333C4CFF else 0x223DDCFF); p.strokeCap=Paint.Cap.ROUND; p.strokeWidth=3.2f
+                for(i in 0 until 58) { val x=((i*97+23)%w).toFloat(); val y=(235+(i*67)%610).toFloat()
+                    p.color=if(i%5==0)0x999BEAFF.toInt() else 0x5578DFFF; c.drawLine(x,y,x-17f,y+58f,p) }
+                if(storm) { val bolt=Path().apply { moveTo(690f,245f); lineTo(635f,390f); lineTo(681f,376f); lineTo(605f,540f) }
+                    p.style=Paint.Style.STROKE; p.strokeWidth=9f; p.color=0xFFFFF2A0.toInt(); p.setShadowLayer(28f,0f,0f,0xFFFFD54F.toInt())
+                    c.drawPath(bolt,p); p.clearShadowLayer(); p.style=Paint.Style.FILL }
             } else if (snow) {
-                p.color=0xAAFFFFFF.toInt()
-                for(i in 0 until 38) c.drawCircle(((i*113)%w).toFloat(),(260+(i*71)%620).toFloat(),if(i%4==0)5f else 3f,p)
+                glow(450f,430f,390f,0x224FCBFF)
+                for(i in 0 until 48) { val x=((i*113+17)%w).toFloat(); val y=(245+(i*71)%620).toFloat(); val r=if(i%5==0)7f else 4f
+                    glow(x,y,r*3,0x66DDF7FF); p.color=0xEEFFFFFF.toInt(); c.drawCircle(x,y,r,p) }
+            } else if (fog) {
+                for(i in 0 until 7) { val y=170f+i*92f
+                    p.shader=LinearGradient(0f,y,w.toFloat(),y,intArrayOf(Color.TRANSPARENT,0x99DDEAF0.toInt(),0xB8FFFFFF.toInt(),0x99DDEAF0.toInt(),Color.TRANSPARENT),null,Shader.TileMode.CLAMP)
+                    p.strokeWidth=34f; p.strokeCap=Paint.Cap.ROUND; c.drawLine(45f,y,855f,y,p); p.shader=null }
             }
-            p.shader=RadialGradient(w*.5f,h*.60f,w*.62f,
-                intArrayOf(Color.TRANSPARENT,0x99040A12.toInt(),Color.TRANSPARENT),
-                floatArrayOf(0f,.72f,1f),Shader.TileMode.CLAMP)
-            c.drawOval(RectF(25f,120f,w-25f,h-15f),p); p.shader=null
             return out
         }
 
