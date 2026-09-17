@@ -57,6 +57,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 if (d.radarDetected) "LIVE RADAR • ISTOTA ${(d.radarConfidence * 100).roundToInt()} % • RainViewer"
                 else "RADAR • ${d.radarStatus}"
             )
+            rv.setImageViewBitmap(R.id.widget_weather_background, drawWeatherBackground(d))
             rv.setImageViewBitmap(R.id.widget_orb, drawCinematicOrb(context, d))
 
             val refresh = Intent(context, WeatherWidgetProvider::class.java).apply { action = ACTION_REFRESH }
@@ -72,6 +73,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             val c = Canvas(out); val p = Paint(Paint.ANTI_ALIAS_FLAG)
             val cx = 330f; val cy = 238f; val rx = 250f; val ry = 190f
+
+            // deep cast shadow makes the radar globe float above the card
+            p.shader = RadialGradient(cx, cy + ry + 25f, 245f, intArrayOf(0x88000000.toInt(), 0x33000000, Color.TRANSPARENT), floatArrayOf(0f,.55f,1f), Shader.TileMode.CLAMP)
+            c.drawOval(RectF(cx-245, cy+ry-20, cx+245, cy+ry+70), p); p.shader = null
 
             // atmospheric glow behind the orb
             p.shader = RadialGradient(cx, cy, 300f, intArrayOf(0x6643E9FF, 0x22206A94, Color.TRANSPARENT), floatArrayOf(0f,.55f,1f), Shader.TileMode.CLAMP)
@@ -106,6 +111,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             p.shader = RadialGradient(cx-85, cy-80, 360f, intArrayOf(0x0018E8FF,0x1514BDE8,0xB0000710.toInt()), floatArrayOf(0f,.55f,1f), Shader.TileMode.CLAMP)
             c.drawOval(globe,p); p.shader=null
             c.restore()
+
+            // curved glass reflection across the upper hemisphere
+            p.shader = LinearGradient(cx-rx, cy-ry, cx+rx, cy+35f,
+                intArrayOf(0x88FFFFFF.toInt(), 0x1829DBFF, Color.TRANSPARENT),
+                floatArrayOf(0f,.38f,1f), Shader.TileMode.CLAMP)
+            c.drawArc(RectF(cx-rx+18, cy-ry+16, cx+rx-18, cy+45), 198f, 144f, false, p)
+            p.shader = null
 
             // perspective range rings (5 / 10 / 20 / 50 km)
             p.style=Paint.Style.STROKE; p.strokeWidth=2f; p.color=0x887DEBFF.toInt()
@@ -157,6 +169,60 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             p.textSize=22f; p.color=if(d.radarEtaMinutes!=null) 0xFFFFD968.toInt() else 0xFFEAF9FF.toInt()
             c.drawText(d.radarEtaMinutes?.let{"ETA $it min"}?:"ETA —",594f,310f,p)
 
+            return out
+        }
+
+        private fun drawWeatherBackground(d: WidgetWeatherData): Bitmap {
+            val w = 900; val h = 900
+            val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val c = Canvas(out); val p = Paint(Paint.ANTI_ALIAS_FLAG)
+            val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            val night = hour < 6 || hour >= 20
+            val code = d.weatherCode ?: 3
+            val storm = code in listOf(95, 96, 99)
+            val rain = code in listOf(51,53,55,56,57,61,63,65,66,67,80,81,82)
+            val snow = code in listOf(71,73,75,77,85,86)
+            val clear = code <= 1
+            val colors = when {
+                storm -> intArrayOf(0xFF080817.toInt(), 0xFF1C203A.toInt(), 0xFF061522.toInt())
+                rain -> intArrayOf(0xFF071B2B.toInt(), 0xFF16465A.toInt(), 0xFF08141E.toInt())
+                snow -> intArrayOf(0xFF1D3348.toInt(), 0xFF7896AA.toInt(), 0xFF142332.toInt())
+                night -> intArrayOf(0xFF071126.toInt(), 0xFF132957.toInt(), 0xFF07111D.toInt())
+                clear -> intArrayOf(0xFF1169A5.toInt(), 0xFF47B9D6.toInt(), 0xFF143A62.toInt())
+                else -> intArrayOf(0xFF18364D.toInt(), 0xFF52798A.toInt(), 0xFF102332.toInt())
+            }
+            p.shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), colors, null, Shader.TileMode.CLAMP)
+            c.drawRect(0f,0f,w.toFloat(),h.toFloat(),p); p.shader=null
+
+            val lightX = if (night) 705f else 690f; val lightY = 130f
+            p.shader = RadialGradient(lightX, lightY, 210f,
+                if (night) intArrayOf(0x99DDE8FF.toInt(),0x225D78C8,Color.TRANSPARENT)
+                else intArrayOf(0xFFFFF1B0.toInt(),0x44FFD66E,Color.TRANSPARENT),
+                null, Shader.TileMode.CLAMP)
+            c.drawCircle(lightX,lightY,210f,p); p.shader=null
+            p.color = if(night) 0xFFDCE8FF.toInt() else 0xFFFFE79A.toInt(); c.drawCircle(lightX,lightY,34f,p)
+
+            if (night) {
+                p.color=0x99FFFFFF.toInt()
+                for(i in 0 until 28) c.drawCircle(((i*137)%w).toFloat(), (35+(i*83)%330).toFloat(), if(i%5==0) 2.2f else 1.1f,p)
+            }
+            if (!clear || rain || snow || storm) {
+                fun cloud(x:Float,y:Float,s:Float,a:Int) {
+                    p.color=Color.argb(a,205,224,232)
+                    c.drawCircle(x,y,62*s,p); c.drawCircle(x+65*s,y+15*s,48*s,p); c.drawCircle(x-62*s,y+20*s,43*s,p)
+                    c.drawRoundRect(RectF(x-105*s,y+15*s,x+118*s,y+76*s),35*s,35*s,p)
+                }
+                cloud(155f,185f,1.15f, if(storm) 42 else 55); cloud(710f,310f,.9f,if(storm) 34 else 45)
+            }
+            if (rain || storm) {
+                p.color=0x448CEBFF; p.strokeWidth=3f
+                for(i in 0 until 44) { val x=((i*97)%w).toFloat(); val y=(300+(i*61)%560).toFloat(); c.drawLine(x,y,x-16,y+52,p) }
+            } else if (snow) {
+                p.color=0xAAFFFFFF.toInt()
+                for(i in 0 until 38) c.drawCircle(((i*113)%w).toFloat(),(260+(i*71)%620).toFloat(),if(i%4==0)5f else 3f,p)
+            }
+            p.shader=LinearGradient(0f,h*.45f,0f,h.toFloat(),Color.TRANSPARENT,0xD9040A12.toInt(),Shader.TileMode.CLAMP)
+            c.drawRect(0f,h*.35f,w.toFloat(),h.toFloat(),p); p.shader=null
             return out
         }
 
