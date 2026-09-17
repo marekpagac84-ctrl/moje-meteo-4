@@ -95,6 +95,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             c.drawOval(globe, p); p.shader = null
 
             val radarFile = File(context.filesDir, "widget_radar.png")
+            val cloudFile = File(context.filesDir, "widget_clouds.png")
+            if (cloudFile.exists()) {
+                BitmapFactory.decodeFile(cloudFile.absolutePath)?.let { clouds ->
+                    p.alpha = 115; c.drawBitmap(clouds, null, globe, p); p.alpha = 255
+                }
+            }
             if (radarFile.exists()) {
                 BitmapFactory.decodeFile(radarFile.absolutePath)?.let { radar ->
                     p.alpha = 205; c.drawBitmap(radar, null, globe, p); p.alpha = 255
@@ -191,8 +197,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 clear -> intArrayOf(0xFF1169A5.toInt(), 0xFF47B9D6.toInt(), 0xFF143A62.toInt())
                 else -> intArrayOf(0xFF18364D.toInt(), 0xFF52798A.toInt(), 0xFF102332.toInt())
             }
-            p.shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), colors, null, Shader.TileMode.CLAMP)
-            c.drawRect(0f,0f,w.toFloat(),h.toFloat(),p); p.shader=null
+            // Borderless atmosphere: colour is strongest in the centre and fades
+            // completely before the Android widget bounds.
+            p.shader = RadialGradient(w*.5f, h*.48f, w*.70f,
+                intArrayOf(colors[1], colors[0], Color.TRANSPARENT),
+                floatArrayOf(0f,.58f,1f), Shader.TileMode.CLAMP)
+            c.drawOval(RectF(12f,12f,w-12f,h-12f),p); p.shader=null
 
             val lightX = if (night) 705f else 690f; val lightY = 130f
             p.shader = RadialGradient(lightX, lightY, 210f,
@@ -206,13 +216,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 p.color=0x99FFFFFF.toInt()
                 for(i in 0 until 28) c.drawCircle(((i*137)%w).toFloat(), (35+(i*83)%330).toFloat(), if(i%5==0) 2.2f else 1.1f,p)
             }
-            if (!clear || rain || snow || storm) {
+            val cloudAmount = d.cloudCover ?: if (clear) 10 else 65
+            if (cloudAmount >= 25 || rain || snow || storm) {
                 fun cloud(x:Float,y:Float,s:Float,a:Int) {
                     p.color=Color.argb(a,205,224,232)
                     c.drawCircle(x,y,62*s,p); c.drawCircle(x+65*s,y+15*s,48*s,p); c.drawCircle(x-62*s,y+20*s,43*s,p)
                     c.drawRoundRect(RectF(x-105*s,y+15*s,x+118*s,y+76*s),35*s,35*s,p)
                 }
-                cloud(155f,185f,1.15f, if(storm) 42 else 55); cloud(710f,310f,.9f,if(storm) 34 else 45)
+                val alpha = (25 + cloudAmount * .55).roundToInt().coerceIn(25,82)
+                cloud(155f,185f,1.15f, if(storm) alpha/2 else alpha)
+                if (cloudAmount >= 60) cloud(710f,310f,.9f,if(storm) alpha/2 else alpha)
             }
             if (rain || storm) {
                 p.color=0x448CEBFF; p.strokeWidth=3f
@@ -221,8 +234,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 p.color=0xAAFFFFFF.toInt()
                 for(i in 0 until 38) c.drawCircle(((i*113)%w).toFloat(),(260+(i*71)%620).toFloat(),if(i%4==0)5f else 3f,p)
             }
-            p.shader=LinearGradient(0f,h*.45f,0f,h.toFloat(),Color.TRANSPARENT,0xD9040A12.toInt(),Shader.TileMode.CLAMP)
-            c.drawRect(0f,h*.35f,w.toFloat(),h.toFloat(),p); p.shader=null
+            p.shader=RadialGradient(w*.5f,h*.60f,w*.62f,
+                intArrayOf(Color.TRANSPARENT,0x99040A12.toInt(),Color.TRANSPARENT),
+                floatArrayOf(0f,.72f,1f),Shader.TileMode.CLAMP)
+            c.drawOval(RectF(25f,120f,w-25f,h-15f),p); p.shader=null
             return out
         }
 
