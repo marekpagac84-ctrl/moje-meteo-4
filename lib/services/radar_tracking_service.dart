@@ -164,6 +164,7 @@ class RadarTrackingService {
           : rawFrames.sublist(rawFrames.length - _wantedFrames);
 
       final kmPerPixel = _kmPerPixel(latitude, _zoom);
+      final tilePosition = _webMercatorTile(latitude, longitude, _zoom);
       final observations = <_RadarObservation>[];
 
       // Sequential downloading deliberately keeps request pressure low.
@@ -174,25 +175,19 @@ class RadarTrackingService {
         );
         final path = frame['path'].toString();
 
-        final uri = Uri.parse(
-          '$host$path/$_tileSize/$_zoom/'
-          '${latitude.toStringAsFixed(6)}/'
-          '${longitude.toStringAsFixed(6)}/'
-          '$_colorScheme/0_0.png',
+        final mosaic = await _downloadMosaic(
+          host: host,
+          path: path,
+          tilePosition: tilePosition,
         );
-
-        final response = await _client
-            .get(uri)
-            .timeout(const Duration(seconds: 12));
-
-        if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
-          continue;
-        }
+        if (mosaic == null) continue;
 
         final observation = _analyseFrame(
-          response.bodyBytes,
+          img.encodePng(mosaic.image),
           timestamp,
           kmPerPixel,
+          centerX: mosaic.userX,
+          centerY: mosaic.userY,
         );
         if (observation != null) observations.add(observation);
       }
@@ -361,15 +356,17 @@ class RadarTrackingService {
   _RadarObservation? _analyseFrame(
     Uint8List bytes,
     DateTime time,
-    double kmPerPixel,
-  ) {
+    double kmPerPixel, {
+    required double centerX,
+    required double centerY,
+  }) {
     final image = img.decodeImage(bytes);
     if (image == null || image.width < 8 || image.height < 8) return null;
 
     final width = image.width;
     final height = image.height;
-    final cx = (width - 1) / 2.0;
-    final cy = (height - 1) / 2.0;
+    final cx = centerX;
+    final cy = centerY;
 
     final wet = Uint8List(width * height);
 
@@ -569,6 +566,72 @@ class RadarTrackingService {
         (_tileSize * math.pow(2.0, zoom));
   }
 
+  Future<_RadarMosaic?> _downloadMosaic({
+    required String host,
+    required String path,
+    required _TilePosition tilePosition,
+  }) async {
+    const radius = 1;
+    final side = _tileSize * (radius * 2 + 1);
+    final mosaic = img.Image(width: side, height: side, numChannels: 4);
+    var loaded = 0;
+    final worldTiles = 1 << _zoom;
+
+    for (var dy = -radius; dy <= radius; dy++) {
+      final tileY = tilePosition.tileY + dy;
+      if (tileY < 0 || tileY >= worldTiles) continue;
+      for (var dx = -radius; dx <= radius; dx++) {
+        final tileX = (tilePosition.tileX + dx) % worldTiles;
+        final uri = Uri.parse(
+          '$host$path/$_tileSize/$_zoom/$tileX/$tileY/'
+          '$_colorScheme/0_0.png',
+        );
+        final response =
+            await _client.get(uri).timeout(const Duration(seconds: 12));
+        if (response.statusCode != 200 || response.bodyBytes.isEmpty) continue;
+        final tile = img.decodeImage(response.bodyBytes);
+        if (tile == null) continue;
+        img.compositeImage(
+          mosaic,
+          tile,
+          dstX: (dx + radius) * _tileSize,
+          dstY: (dy + radius) * _tileSize,
+        );
+        loaded++;
+      }
+    }
+
+    if (loaded == 0) return null;
+    return _RadarMosaic(
+      image: mosaic,
+      userX: radius * _tileSize + tilePosition.pixelX,
+      userY: radius * _tileSize + tilePosition.pixelY,
+    );
+  }
+
+  static _TilePosition _webMercatorTile(
+    double latitude,
+    double longitude,
+    int zoom,
+  ) {
+    final n = math.pow(2.0, zoom).toDouble();
+    final clippedLat = latitude.clamp(-85.05112878, 85.05112878).toDouble();
+    final x = (longitude + 180.0) / 360.0 * n;
+    final latRad = clippedLat * math.pi / 180.0;
+    final y = (1.0 -
+            math.log(math.tan(latRad) + 1.0 / math.cos(latRad)) / math.pi) /
+        2.0 *
+        n;
+    final tileX = x.floor();
+    final tileY = y.floor();
+    return _TilePosition(
+      tileX: tileX,
+      tileY: tileY,
+      pixelX: (x - tileX) * _tileSize,
+      pixelY: (y - tileY) * _tileSize,
+    );
+  }
+
   static double _bearingFromVector(double east, double north) {
     var deg = math.atan2(east, north) * 180.0 / math.pi;
     if (deg < 0) deg += 360.0;
@@ -611,5 +674,31 @@ class _Component {
     required this.nearestPixel2,
     required this.nearestX,
     required this.nearestY,
+  });
+}
+
+class _TilePosition {
+  final int tileX;
+  final int tileY;
+  final double pixelX;
+  final double pixelY;
+
+  const _TilePosition({
+    required this.tileX,
+    required this.tileY,
+    required this.pixelX,
+    required this.pixelY,
+  });
+}
+
+class _RadarMosaic {
+  final img.Image image;
+  final double userX;
+  final double userY;
+
+  const _RadarMosaic({
+    required this.image,
+    required this.userX,
+    required this.userY,
   });
 }
