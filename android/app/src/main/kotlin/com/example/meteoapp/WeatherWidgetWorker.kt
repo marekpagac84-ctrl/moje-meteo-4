@@ -130,7 +130,8 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
         val trend = oldest.analysis.distanceKm!! - latest.analysis.distanceKm!!
         val approaching = usefulMotion && trend > max(0.8, latest.analysis.kmPerPixel * 0.75) &&
             hoursToClosest != null && hoursToClosest >= 0
-        val intersects = approaching && closestKm != null && hoursToClosest <= 1.5 &&
+        val intersects = approaching && closestKm != null && hoursToClosest != null &&
+            hoursToClosest <= 1.5 &&
             closestKm <= latest.analysis.radiusKm + 5.0
         var confidence = 0.20
         confidence += min(0.40, observations.size * 0.10)
