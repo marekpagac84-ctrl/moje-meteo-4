@@ -29,6 +29,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
                 temperature = weather.temperature,
                 apparentTemperature = weather.apparentTemperature,
                 weatherCode = weather.weatherCode,
+                cloudCover = weather.cloudCover,
                 precipProbability = weather.precipProbability,
                 nextRainMinutes = weather.nextRainMinutes,
                 rainTotalMm = weather.rainTotalMm,
@@ -55,7 +56,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
 
     private fun fetchWeather(lat: Double, lng: Double): ModelWeather {
         val url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lng" +
-            "&current=temperature_2m,apparent_temperature,weather_code" +
+            "&current=temperature_2m,apparent_temperature,weather_code,cloud_cover" +
             "&hourly=precipitation_probability&forecast_hours=6" +
             "&minutely_15=precipitation&forecast_minutely_15=16&timezone=auto"
         val json = JSONObject(getText(url))
@@ -63,6 +64,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
         val temp = current.optDouble("temperature_2m", Double.NaN).takeUnless { it.isNaN() }
         val apparent = current.optDouble("apparent_temperature", Double.NaN).takeUnless { it.isNaN() }
         val weatherCode = if (current.has("weather_code")) current.optInt("weather_code") else null
+        val cloudCover = if (current.has("cloud_cover")) current.optInt("cloud_cover") else null
         val probs = json.optJSONObject("hourly")?.optJSONArray("precipitation_probability")
         val probability = if (probs != null && probs.length() > 0 && !probs.isNull(0)) probs.optInt(0) else null
         val arr = json.optJSONObject("minutely_15")?.optJSONArray("precipitation")
@@ -75,7 +77,27 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
                 if (next == null && mm >= 0.025) next = i * 15
             }
         }
-        return ModelWeather(temp, apparent, weatherCode, probability, next, total)
+        fetchSatelliteClouds(lat, lng)
+        return ModelWeather(temp, apparent, weatherCode, cloudCover, probability, next, total)
+    }
+
+    private fun fetchSatelliteClouds(lat: Double, lng: Double) {
+        val target = File(applicationContext.filesDir, "widget_clouds.png")
+        try {
+            val meta = JSONObject(getText("https://api.rainviewer.com/public/weather-maps.json"))
+            val frames = meta.optJSONObject("satellite")?.optJSONArray("infrared")
+            if (frames == null || frames.length() == 0) {
+                target.delete()
+                return
+            }
+            val frame = frames.getJSONObject(frames.length() - 1)
+            val mosaic = downloadMosaic(meta.getString("host"), frame.getString("path"), lat, lng, 5, "0/0_0.png")
+            if (mosaic == null) target.delete() else target.outputStream().use {
+                mosaic.bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            }
+        } catch (_: Exception) {
+            target.delete()
+        }
     }
 
     private fun fetchRadar(lat: Double, lng: Double): RadarResult {
@@ -187,7 +209,10 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
     }
 
     private fun downloadRadarMosaic(host: String, path: String, lat: Double, lng: Double): RadarMosaic? {
-        val zoom = 7
+        return downloadMosaic(host, path, lat, lng, 7, "2/0_0.png")
+    }
+
+    private fun downloadMosaic(host: String, path: String, lat: Double, lng: Double, zoom: Int, suffix: String): RadarMosaic? {
         val tileSize = 256
         val n = 2.0.pow(zoom)
         val clippedLat = lat.coerceIn(-85.05112878, 85.05112878)
@@ -205,7 +230,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
             val tileY = baseY + dy
             if (tileY !in 0 until worldTiles) continue
             val tileX = ((baseX + dx) % worldTiles + worldTiles) % worldTiles
-            val tile = downloadBitmap("$host$path/$tileSize/$zoom/$tileX/$tileY/2/0_0.png") ?: continue
+            val tile = downloadBitmap("$host$path/$tileSize/$zoom/$tileX/$tileY/$suffix") ?: continue
             canvas.drawBitmap(tile, ((dx + 1) * tileSize).toFloat(), ((dy + 1) * tileSize).toFloat(), null)
             loaded++
         }
@@ -231,7 +256,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
     } catch (_: Exception) { null }
 }
 
-data class ModelWeather(val temperature: Double?, val apparentTemperature: Double?, val weatherCode: Int?, val precipProbability: Int?, val nextRainMinutes: Int?, val rainTotalMm: Double?)
+data class ModelWeather(val temperature: Double?, val apparentTemperature: Double?, val weatherCode: Int?, val cloudCover: Int?, val precipProbability: Int?, val nextRainMinutes: Int?, val rainTotalMm: Double?)
 data class RadarResult(
     val detected: Boolean,
     val distanceKm: Double?,
