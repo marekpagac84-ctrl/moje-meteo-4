@@ -1,7 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
-    android:orientation="vertical" android:padding="12dp" android:background="@drawable/widget_background">
+    android:background="@drawable/widget_background">
+
+    <ImageView
+        android:id="@+id/widget_weather_background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.92"
+        android:scaleType="centerCrop" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="12dp">
 
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
@@ -33,4 +46,5 @@
         <TextView android:id="@+id/widget_total" style="@style/WidgetMetric" android:gravity="end" android:text="3.1 mm" />
     </LinearLayout>
     <TextView android:id="@+id/widget_updated" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="end" android:text="Aktualizované 18:24" android:textColor="#708CA2" android:textSize="8sp" />
-</LinearLayout>
+    </LinearLayout>
+</FrameLayout>
