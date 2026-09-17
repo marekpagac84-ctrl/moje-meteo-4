@@ -8,6 +8,7 @@ data class WidgetWeatherData(
     val locationName: String = "Nové Mesto nad Váhom",
     val temperature: Double? = null,
     val apparentTemperature: Double? = null,
+    val weatherCode: Int? = null,
     val precipProbability: Int? = null,
     val nextRainMinutes: Int? = null,
     val rainTotalMm: Double? = null,
@@ -39,6 +40,7 @@ object WeatherWidgetStore {
         e.putLong("lng", java.lang.Double.doubleToRawLongBits(d.lng))
         e.putString("name", d.locationName)
         putDouble(e, "temp", d.temperature); putDouble(e, "apparent", d.apparentTemperature)
+        if (d.weatherCode == null) e.remove("weather_code") else e.putInt("weather_code", d.weatherCode)
         if (d.precipProbability == null) e.remove("prob") else e.putInt("prob", d.precipProbability)
         if (d.nextRainMinutes == null) e.remove("next") else e.putInt("next", d.nextRainMinutes)
         putDouble(e, "total", d.rainTotalMm); e.putBoolean("radar", d.radarDetected)
@@ -59,6 +61,7 @@ object WeatherWidgetStore {
             lng = java.lang.Double.longBitsToDouble(p.getLong("lng", java.lang.Double.doubleToRawLongBits(17.8309))),
             locationName = p.getString("name", "Nové Mesto nad Váhom") ?: "Nové Mesto nad Váhom",
             temperature = getDouble(p, "temp"), apparentTemperature = getDouble(p, "apparent"),
+            weatherCode = if (p.contains("weather_code")) p.getInt("weather_code", 0) else null,
             precipProbability = if (p.contains("prob")) p.getInt("prob", 0) else null,
             nextRainMinutes = if (p.contains("next")) p.getInt("next", 0) else null,
             rainTotalMm = getDouble(p, "total"), radarDetected = p.getBoolean("radar", false),
