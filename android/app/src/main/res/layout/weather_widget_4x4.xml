@@ -3,6 +3,13 @@
     android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
     android:background="@android:color/transparent">
 
+    <ImageView
+        android:id="@+id/widget_weather_effects"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.92"
+        android:scaleType="centerCrop" />
+
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -38,6 +45,6 @@
         <TextView android:id="@+id/widget_direction" style="@style/WidgetMetric" android:gravity="center" android:text="SZ" />
         <TextView android:id="@+id/widget_total" style="@style/WidgetMetric" android:gravity="end" android:text="3.1 mm" />
     </LinearLayout>
-    <TextView android:id="@+id/widget_updated" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="end" android:text="Aktualizované 18:24" android:textColor="#D5E8F2" android:textSize="9sp" android:textStyle="bold" android:shadowColor="#FF000000" android:shadowDx="0" android:shadowDy="2" android:shadowRadius="4" />
+    <TextView android:id="@+id/widget_updated" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="end" android:text="Aktualizované 18:24" android:textColor="#EAF7FF" android:textSize="11sp" android:textStyle="bold" android:shadowColor="#FF000000" android:shadowDx="0" android:shadowDy="3" android:shadowRadius="5" />
     </LinearLayout>
 </FrameLayout>
