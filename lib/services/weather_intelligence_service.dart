@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import '../models/meteo_data.dart';
 import 'cloud_classifier_service.dart';
 import 'ecmwf_service.dart';
+import 'radar_tracking_service.dart';
 
 class WeatherIntelligenceResult {
   final String title;
@@ -21,6 +22,15 @@ class WeatherIntelligenceResult {
   final bool rainLikelySoon;
 
   final double? radarDistanceKm;
+  final double? radarSpeedKmh;
+  final double? radarMovementBearingDeg;
+  final double? radarPrecipitationBearingDeg;
+  final int? radarEtaMinutes;
+  final double? radarConfidence;
+  final bool radarApproaching;
+  final bool radarPathIntersectsUser;
+  final String? radarStatus;
+
   final double? lightningDistanceKm;
 
   final int? rainProbability;
@@ -51,6 +61,14 @@ class WeatherIntelligenceResult {
     required this.stormNearby,
     required this.rainLikelySoon,
     required this.radarDistanceKm,
+    required this.radarSpeedKmh,
+    required this.radarMovementBearingDeg,
+    required this.radarPrecipitationBearingDeg,
+    required this.radarEtaMinutes,
+    required this.radarConfidence,
+    required this.radarApproaching,
+    required this.radarPathIntersectsUser,
+    required this.radarStatus,
     required this.lightningDistanceKm,
     required this.rainProbability,
     required this.precipitation,
@@ -78,6 +96,9 @@ class WeatherIntelligenceService {
 
   final EcmwfService _ecmwfService =
       EcmwfService();
+
+  final RadarTrackingService _radarTrackingService =
+      RadarTrackingService();
 
   Future<WeatherIntelligenceResult> analyze({
     required double lat,
@@ -121,6 +142,8 @@ class WeatherIntelligenceService {
     double? ecmwfMaxPrecipitation6h;
 
     bool? ecmwfRainExpected;
+
+    RadarTrackingResult? radar;
 
     // ==========================================================
     // 1. OPEN-METEO
@@ -389,7 +412,61 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 4. BAROMETER
+    // 4. REAL RADAR TRACKING (RAINVIEWER)
+    // ==========================================================
+
+    try {
+      radar = await _radarTrackingService.track(
+        latitude: lat,
+        longitude: lng,
+      );
+
+      if (radar.radarAvailable) {
+        evidence.add('Radar RainViewer bol načítaný (${radar.framesUsed} snímky).');
+
+        if (!radar.precipitationDetected) {
+          evidence.add('Radar v sledovanom okolí momentálne nezachytil zrážky.');
+        } else {
+          final distance = radar.distanceKm;
+          if (distance != null) {
+            evidence.add(
+              'Najbližší radarový okraj zrážok je približne ${distance.toStringAsFixed(1)} km od polohy.',
+            );
+          }
+
+          if (radar.approaching) {
+            score += 0.16;
+            evidence.add('Radar potvrdzuje, že zrážková oblasť sa približuje.');
+          }
+
+          if (radar.pathIntersectsUser) {
+            score += 0.16;
+            rainLikelySoon = true;
+            evidence.add('Aktuálna radarová dráha pretína polohu používateľa.');
+          } else if (radar.approaching) {
+            evidence.add(
+              'Zrážky sa približujú, ale aktuálna radarová dráha polohu používateľa nepretína.',
+            );
+          }
+
+          if (radar.etaMinutes != null) {
+            score += 0.08;
+            evidence.add('Radarový odhad prvých zrážok: približne ${radar.etaMinutes} min.');
+          }
+
+          if (radar.confidence >= 0.70) {
+            score += 0.05;
+          }
+        }
+      } else {
+        evidence.add('Radar tracking momentálne nie je dostupný: ${radar.status}');
+      }
+    } catch (e) {
+      evidence.add('Radar tracking sa nepodarilo načítať.');
+    }
+
+    // ==========================================================
+    // 5. BAROMETER
     // ==========================================================
 
     if (pressure > 0) {
@@ -423,7 +500,7 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 5. ORIENTÁCIA
+    // 6. ORIENTÁCIA
     // ==========================================================
 
     final direction =
@@ -728,7 +805,7 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 8. INTENZÍVNE ZRÁŽKY
+    // 9. INTENZÍVNE ZRÁŽKY
     // ==========================================================
 
     if (precipitation >= 8 &&
@@ -756,7 +833,7 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 9. NORMALIZÁCIA
+    // 10. NORMALIZÁCIA
     // ==========================================================
 
     /*
@@ -783,14 +860,34 @@ class WeatherIntelligenceService {
         );
 
     // ==========================================================
-    // 10. HLAVNÝ ZÁVER
+    // 11. HLAVNÝ ZÁVER
     // ==========================================================
 
     String title;
 
     String description;
 
-    if (stormNearby) {
+    if (radar?.pathIntersectsUser == true &&
+        radar?.etaMinutes != null &&
+        (radar?.confidence ?? 0.0) >= 0.50) {
+      final eta = radar!.etaMinutes!;
+      final distance = radar.distanceKm;
+      final speed = radar.speedKmh;
+
+      title = 'Radar: zrážky smerujú k tebe';
+      description =
+          'Radarový pohyb pretína tvoju polohu. '
+          '${distance != null ? 'Najbližší okraj je približne ${distance.toStringAsFixed(1)} km ďaleko. ' : ''}'
+          '${speed != null ? 'Pozorovaná rýchlosť pohybu je približne ${speed.toStringAsFixed(0)} km/h. ' : ''}'
+          'Odhad prvých zrážok je približne o $eta min.';
+    } else if (radar?.approaching == true &&
+        radar?.pathIntersectsUser == false &&
+        (radar?.confidence ?? 0.0) >= 0.50) {
+      title = 'Radar: zrážky sa približujú';
+      description =
+          'Radar sleduje približujúcu sa zrážkovú oblasť, '
+          'ale jej aktuálna dráha tvoju polohu nepretína.';
+    } else if (stormNearby) {
       title =
           'Pozor, možná silná konvekcia';
 
@@ -860,7 +957,7 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 11. TEXT ISTOTY
+    // 12. TEXT ISTOTY
     // ==========================================================
 
     String confidenceText;
@@ -882,7 +979,7 @@ class WeatherIntelligenceService {
     }
 
     // ==========================================================
-    // 12. VÝSLEDOK
+    // 13. VÝSLEDOK
     // ==========================================================
 
     return WeatherIntelligenceResult(
@@ -902,7 +999,31 @@ class WeatherIntelligenceService {
           rainLikelySoon,
 
       radarDistanceKm:
-          null,
+          radar?.distanceKm,
+
+      radarSpeedKmh:
+          radar?.speedKmh,
+
+      radarMovementBearingDeg:
+          radar?.movementBearingDeg,
+
+      radarPrecipitationBearingDeg:
+          radar?.precipitationBearingDeg,
+
+      radarEtaMinutes:
+          radar?.etaMinutes,
+
+      radarConfidence:
+          radar?.confidence,
+
+      radarApproaching:
+          radar?.approaching ?? false,
+
+      radarPathIntersectsUser:
+          radar?.pathIntersectsUser ?? false,
+
+      radarStatus:
+          radar?.status,
 
       lightningDistanceKm:
           null,
