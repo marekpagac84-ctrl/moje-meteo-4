@@ -422,45 +422,42 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
       children: [
         // PÔVODNÝ Living Weather hero zostáva presne zachovaný.
         _buildHero(),
-        Transform.translate(
-          offset: const Offset(0, -18),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: _buildAiBanner(),
-          ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: _buildAiBanner(),
         ),
         // NOVÉ: Storm Orb je samostatná pridaná karta.
         // Nenahrádza ani nemení pôvodný Living Weather hero.
         Padding(
-          padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-          child: StormOrbWidget(
-            intelligence: _weatherIntelligence,
-            temperature: _temperature,
-            apparentTemperature: _apparentTemperature,
-            locationName: 'Moja GPS poloha',
-            heading: _heading,
-            rainProbability: (_ctx?.nextRainProbability ??
-                    _currentHourlyValue(_meteo?.hourlyPrecipitationProbability))
-                ?.round(),
-            rainTotalMm: _ctx?.rainTotalAmount,
-            updatedAt: _weatherIntelligenceUpdatedAt,
-            onRefresh: _refreshEverything,
-            onRadar: widget.onOpenMap,
-            onAiSky: _analyzeSky,
-            onDetail: _showCurrentWeatherDetail,
-            onMap: widget.onOpenMap,
+          padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
+          child: SizedBox(
+            height: 640,
+            child: StormOrbWidget(
+              intelligence: _weatherIntelligence,
+              temperature: _temperature,
+              apparentTemperature: _apparentTemperature,
+              locationName: 'Moja GPS poloha',
+              heading: _heading,
+              rainProbability: (_ctx?.nextRainProbability ??
+                      _currentHourlyValue(
+                          _meteo?.hourlyPrecipitationProbability))
+                  ?.round(),
+              rainTotalMm: _ctx?.rainTotalAmount,
+              updatedAt: _weatherIntelligenceUpdatedAt,
+              onRefresh: _refreshEverything,
+              onRadar: widget.onOpenMap,
+              onAiSky: _analyzeSky,
+              onDetail: _showCurrentWeatherDetail,
+              onMap: widget.onOpenMap,
+            ),
           ),
         ),
         if (_error != null) ...[
-          Transform.translate(
-            offset: const Offset(0, -8),
-            child: _buildError(),
-          ),
+          _buildError(),
+          const SizedBox(height: 8),
         ],
-        Transform.translate(
-          offset: const Offset(0, -4),
-          child: _buildNextRainCard(),
-        ),
+        _buildNextRainCard(),
         const SizedBox(height: 10),
         _buildQuickMetrics(),
         const SizedBox(height: 12),
