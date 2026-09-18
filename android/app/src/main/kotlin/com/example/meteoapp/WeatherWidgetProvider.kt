@@ -57,7 +57,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 if (d.radarDetected) "LIVE RADAR • ISTOTA ${(d.radarConfidence * 100).roundToInt()} % • RainViewer"
                 else "RADAR • ${d.radarStatus}"
             )
-            rv.setImageViewBitmap(R.id.widget_weather_effects, drawWeatherEffects(d))
+            rv.setImageViewBitmap(R.id.widget_weather_effects, drawWeatherEffects(context, d))
             rv.setImageViewBitmap(R.id.widget_orb, drawCinematicOrb(context, d))
 
             val refresh = Intent(context, WeatherWidgetProvider::class.java).apply { action = ACTION_REFRESH }
@@ -178,7 +178,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             return out
         }
 
-        private fun drawWeatherEffects(d: WidgetWeatherData): Bitmap {
+        private fun drawWeatherEffects(context: Context, d: WidgetWeatherData): Bitmap {
             val w = 900; val h = 900
             val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             val c = Canvas(out); val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -190,6 +190,39 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val snow = code in listOf(71,73,75,77,85,86)
             val fog = code == 45 || code == 48
             val clear = code <= 1
+            val sceneRes = when {
+                rain || storm -> R.drawable.widget_scene_storm
+                clear && night -> R.drawable.widget_scene_clear_night
+                else -> R.drawable.widget_scene_cloudy
+            }
+
+            // Photographic atmosphere is rendered first and feathered on every side.
+            // This keeps the scene cinematic without restoring the old rectangular tile.
+            BitmapFactory.decodeResource(context.resources, sceneRes)?.let { scene ->
+                val sceneLayer = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                val layerCanvas = Canvas(sceneLayer)
+                val scenePaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+                    alpha = when {
+                        rain || storm -> 218
+                        clear && night -> 190
+                        else -> 172
+                    }
+                }
+                layerCanvas.drawBitmap(scene, null, Rect(0, 0, w, h), scenePaint)
+
+                val mask = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    shader = RadialGradient(
+                        w * .50f, h * .43f, w * .72f,
+                        intArrayOf(Color.WHITE, 0xEFFFFFFF.toInt(), 0x88FFFFFF.toInt(), Color.TRANSPARENT),
+                        floatArrayOf(0f, .52f, .82f, 1f),
+                        Shader.TileMode.CLAMP
+                    )
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+                }
+                layerCanvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), mask)
+                mask.xfermode = null
+                c.drawBitmap(sceneLayer, 0f, 0f, p)
+            }
             fun glow(x: Float, y: Float, radius: Float, centre: Int) {
                 p.shader = RadialGradient(x, y, radius, intArrayOf(centre, Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
                 c.drawCircle(x, y, radius, p); p.shader = null
@@ -206,24 +239,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 p.clearShadowLayer(); p.shader=null; p.color=if(dark) 0x223CCBFF else 0x44FFFFFF
                 c.drawOval(RectF(x-95*scale,y-55*scale,x+92*scale,y+13*scale),p)
             }
-            if (clear && night) {
-                glow(690f,135f,150f,0x556FAEFF); p.color=0xFFF2F5FF.toInt(); c.drawCircle(690f,135f,39f,p)
-                p.color=0xFF18263C.toInt(); c.drawCircle(710f,119f,38f,p)
-                for(i in 0 until 44) { val x=(30+(i*157)%840).toFloat(); val y=(35+(i*79)%360).toFloat()
-                    glow(x,y,if(i%7==0)10f else 5f,if(i%7==0)0xAAFFFFFF.toInt() else 0x77BCEBFF)
-                    p.color=Color.WHITE; c.drawCircle(x,y,if(i%7==0)2.6f else 1.3f,p) }
-            } else if (clear) {
+            if (clear && !night) {
                 glow(700f,130f,215f,0x77FFD76A); p.color=0xFFFFF0A5.toInt(); c.drawCircle(700f,130f,43f,p)
                 p.color=0x55FFE596; p.strokeWidth=5f
                 for(i in 0 until 12) { val a=i*Math.PI/6; c.drawLine(700f,130f,(700+cos(a)*155).toFloat(),(130+sin(a)*155).toFloat(),p) }
             }
             val cloudAmount = d.cloudCover ?: if (clear) 10 else 65
             if (rain || storm) {
-                // One continuous, irregular storm shelf instead of separate icon-like clouds.
-                glow(455f,455f,420f,if(storm)0x3D6150FF else 0x2935CFFF)
-                cloud(if(storm)610f else 390f,110f,if(storm)1.55f else 1.72f,true)
+                // Real cloud texture comes from the photographic layer; only motion cues stay procedural.
+                glow(455f,455f,420f,if(storm)0x286150FF else 0x1835CFFF)
                 p.strokeCap=Paint.Cap.ROUND
-                for(i in 0 until 76) {
+                for(i in 0 until 42) {
                     val x=((i*83+31)%w).toFloat(); val y=(155+(i*59)%720).toFloat()
                     val length=if(i%6==0)72f else 43f
                     p.strokeWidth=if(i%6==0)3.1f else 1.55f
@@ -234,16 +260,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     p.style=Paint.Style.STROKE; p.strokeWidth=9f; p.color=0xFFFFF2A0.toInt(); p.setShadowLayer(28f,0f,0f,0xFFFFD54F.toInt())
                     c.drawPath(bolt,p); p.clearShadowLayer(); p.style=Paint.Style.FILL }
             } else if (snow) {
-                glow(430f,430f,400f,0x284FCBFF); cloud(155f,100f,1.18f,false)
+                glow(430f,430f,400f,0x284FCBFF)
                 for(i in 0 until 56) { val x=((i*113+17)%w).toFloat(); val y=(170+(i*71)%690).toFloat(); val r=if(i%7==0)6f else 2.8f
                     glow(x,y,r*2.6f,0x55DDF7FF); p.color=0xE6FFFFFF.toInt(); c.drawCircle(x,y,r,p) }
             } else if (fog) {
                 for(i in 0 until 7) { val y=170f+i*92f
                     p.shader=LinearGradient(0f,y,w.toFloat(),y,intArrayOf(Color.TRANSPARENT,0x99DDEAF0.toInt(),0xB8FFFFFF.toInt(),0x99DDEAF0.toInt(),Color.TRANSPARENT),null,Shader.TileMode.CLAMP)
                     p.strokeWidth=34f; p.strokeCap=Paint.Cap.ROUND; c.drawLine(45f,y,855f,y,p); p.shader=null }
-            } else if (cloudAmount >= 25) {
-                cloud(120f,120f,1.12f,false)
-                if(cloudAmount>=60) cloud(735f,150f,.73f,false)
             }
             return out
         }
