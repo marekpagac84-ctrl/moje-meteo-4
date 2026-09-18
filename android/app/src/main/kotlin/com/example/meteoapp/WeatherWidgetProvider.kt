@@ -199,8 +199,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     if (dark) intArrayOf(0xCC26394C.toInt(),0xB0101C2A.toInt(),0x55101A25)
                     else intArrayOf(0xDDE9F4FA.toInt(),0xAA9FB8C7.toInt(),0x554A6677), null, Shader.TileMode.CLAMP)
                 p.setShadowLayer(28f*scale,0f,16f*scale,0x88000000.toInt())
-                c.drawCircle(x-78*scale,y+10*scale,58*scale,p); c.drawCircle(x-25*scale,y-28*scale,78*scale,p)
-                c.drawCircle(x+58*scale,y-5*scale,66*scale,p); c.drawCircle(x+112*scale,y+22*scale,47*scale,p)
+                c.drawCircle(x-126*scale,y+24*scale,41*scale,p); c.drawCircle(x-78*scale,y+10*scale,58*scale,p)
+                c.drawCircle(x-25*scale,y-28*scale,78*scale,p); c.drawCircle(x+38*scale,y-38*scale,61*scale,p)
+                c.drawCircle(x+88*scale,y-4*scale,66*scale,p); c.drawCircle(x+142*scale,y+25*scale,43*scale,p)
                 c.drawRoundRect(RectF(x-132*scale,y+12*scale,x+158*scale,y+78*scale),38*scale,38*scale,p)
                 p.clearShadowLayer(); p.shader=null; p.color=if(dark) 0x223CCBFF else 0x44FFFFFF
                 c.drawOval(RectF(x-95*scale,y-55*scale,x+92*scale,y+13*scale),p)
@@ -217,25 +218,32 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 for(i in 0 until 12) { val a=i*Math.PI/6; c.drawLine(700f,130f,(700+cos(a)*155).toFloat(),(130+sin(a)*155).toFloat(),p) }
             }
             val cloudAmount = d.cloudCover ?: if (clear) 10 else 65
-            if (!fog && (cloudAmount >= 25 || rain || snow || storm)) {
-                cloud(160f,150f,1.02f,rain||storm)
-                if(cloudAmount>=60 || rain || storm) cloud(700f,230f,.82f,rain||storm)
-            }
             if (rain || storm) {
-                glow(450f,410f,390f,if(storm)0x333C4CFF else 0x223DDCFF); p.strokeCap=Paint.Cap.ROUND; p.strokeWidth=3.2f
-                for(i in 0 until 58) { val x=((i*97+23)%w).toFloat(); val y=(235+(i*67)%610).toFloat()
-                    p.color=if(i%5==0)0x999BEAFF.toInt() else 0x5578DFFF; c.drawLine(x,y,x-17f,y+58f,p) }
+                // One continuous, irregular storm shelf instead of separate icon-like clouds.
+                glow(455f,455f,420f,if(storm)0x3D6150FF else 0x2935CFFF)
+                cloud(if(storm)610f else 390f,110f,if(storm)1.55f else 1.72f,true)
+                p.strokeCap=Paint.Cap.ROUND
+                for(i in 0 until 76) {
+                    val x=((i*83+31)%w).toFloat(); val y=(155+(i*59)%720).toFloat()
+                    val length=if(i%6==0)72f else 43f
+                    p.strokeWidth=if(i%6==0)3.1f else 1.55f
+                    p.color=if(i%6==0)0xAAAFEFFF.toInt() else 0x6679CDE8
+                    c.drawLine(x,y,x-13f,y+length,p)
+                }
                 if(storm) { val bolt=Path().apply { moveTo(690f,245f); lineTo(635f,390f); lineTo(681f,376f); lineTo(605f,540f) }
                     p.style=Paint.Style.STROKE; p.strokeWidth=9f; p.color=0xFFFFF2A0.toInt(); p.setShadowLayer(28f,0f,0f,0xFFFFD54F.toInt())
                     c.drawPath(bolt,p); p.clearShadowLayer(); p.style=Paint.Style.FILL }
             } else if (snow) {
-                glow(450f,430f,390f,0x224FCBFF)
-                for(i in 0 until 48) { val x=((i*113+17)%w).toFloat(); val y=(245+(i*71)%620).toFloat(); val r=if(i%5==0)7f else 4f
-                    glow(x,y,r*3,0x66DDF7FF); p.color=0xEEFFFFFF.toInt(); c.drawCircle(x,y,r,p) }
+                glow(430f,430f,400f,0x284FCBFF); cloud(155f,100f,1.18f,false)
+                for(i in 0 until 56) { val x=((i*113+17)%w).toFloat(); val y=(170+(i*71)%690).toFloat(); val r=if(i%7==0)6f else 2.8f
+                    glow(x,y,r*2.6f,0x55DDF7FF); p.color=0xE6FFFFFF.toInt(); c.drawCircle(x,y,r,p) }
             } else if (fog) {
                 for(i in 0 until 7) { val y=170f+i*92f
                     p.shader=LinearGradient(0f,y,w.toFloat(),y,intArrayOf(Color.TRANSPARENT,0x99DDEAF0.toInt(),0xB8FFFFFF.toInt(),0x99DDEAF0.toInt(),Color.TRANSPARENT),null,Shader.TileMode.CLAMP)
                     p.strokeWidth=34f; p.strokeCap=Paint.Cap.ROUND; c.drawLine(45f,y,855f,y,p); p.shader=null }
+            } else if (cloudAmount >= 25) {
+                cloud(120f,120f,1.12f,false)
+                if(cloudAmount>=60) cloud(735f,150f,.73f,false)
             }
             return out
         }
