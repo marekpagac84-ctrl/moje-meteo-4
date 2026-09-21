@@ -50,13 +50,21 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             })
             rv.setTextViewText(R.id.widget_distance, d.radarDistanceKm?.let { "%.1f km".format(Locale.US, it) } ?: "— km")
             rv.setTextViewText(R.id.widget_speed, d.radarSpeedKmh?.let { "%.0f km/h".format(Locale.US, it) } ?: "— km/h")
-            rv.setTextViewText(R.id.widget_direction, d.radarMovementBearingDeg?.let { "→ ${directionName(it)}" } ?: "—")
+            rv.setTextViewText(
+                R.id.widget_direction,
+                d.radarPlaceName?.let { "od $it" }
+                    ?: d.radarBearingDeg?.let { "od ${directionName(it)}" }
+                    ?: "—"
+            )
             rv.setTextViewText(R.id.widget_total, d.rainTotalMm?.let { "%.1f mm".format(Locale.US, it) } ?: "— mm")
             rv.setTextViewText(R.id.widget_updated, if (refreshing) "Aktualizujem…" else "Aktualizované ${d.updatedAt ?: "—"}")
             rv.setTextViewText(
                 R.id.widget_source,
                 if (d.rainingAtUser) "AKTUÁLNE ZRÁŽKY • RADAR + OPEN-METEO"
-                else if (d.radarDetected) "LIVE RADAR • ISTOTA ${(d.radarConfidence * 100).roundToInt()} % • RainViewer"
+                else if (d.radarDetected) {
+                    val place = d.radarPlaceName?.let { " • OD ${it.uppercase(Locale.getDefault())}" } ?: ""
+                    "LIVE RADAR$place • ISTOTA ${(d.radarConfidence * 100).roundToInt()} % • RainViewer"
+                }
                 else "RADAR • ${d.radarStatus}"
             )
             rv.setImageViewBitmap(R.id.widget_weather_effects, drawWeatherEffects(context, d))

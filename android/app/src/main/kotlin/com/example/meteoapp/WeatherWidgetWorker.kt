@@ -25,6 +25,15 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
             val old = WeatherWidgetStore.read(applicationContext)
             val weather = fetchWeather(old.lat, old.lng)
             val radar = fetchRadar(old.lat, old.lng)
+            val radarPlace = if (radar.detected && !radar.rainingAtUser) {
+                PlaceDirectionResolver.resolve(
+                    applicationContext,
+                    old.lat,
+                    old.lng,
+                    radar.bearingDeg,
+                    radar.distanceKm
+                )
+            } else null
             val merged = old.copy(
                 temperature = weather.temperature,
                 apparentTemperature = weather.apparentTemperature,
@@ -37,6 +46,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
                 radarDistanceKm = radar.distanceKm,
                 radarSpeedKmh = radar.speedKmh,
                 radarBearingDeg = radar.bearingDeg,
+                radarPlaceName = radarPlace,
                 radarMovementBearingDeg = radar.movementBearingDeg,
                 radarEtaMinutes = radar.etaMinutes,
                 radarConfidence = radar.confidence,

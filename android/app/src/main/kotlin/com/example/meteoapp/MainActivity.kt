@@ -36,6 +36,22 @@ class MainActivity : FlutterActivity() {
                         WeatherWidgetProvider.updateAll(this, refreshing = true)
                         result.success(true)
                     }
+                    "resolveRadarPlace" -> {
+                        val lat = call.argument<Double>("lat")
+                        val lng = call.argument<Double>("lng")
+                        val bearing = call.argument<Double>("bearing")
+                        val distance = call.argument<Double>("distance")
+                        if (lat == null || lng == null || bearing == null) {
+                            result.success(null)
+                        } else {
+                            Thread {
+                                val place = PlaceDirectionResolver.resolve(
+                                    applicationContext, lat, lng, bearing, distance
+                                )
+                                runOnUiThread { result.success(place) }
+                            }.start()
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }

@@ -17,6 +17,7 @@ data class WidgetWeatherData(
     val radarDistanceKm: Double? = null,
     val radarSpeedKmh: Double? = null,
     val radarBearingDeg: Double? = null,
+    val radarPlaceName: String? = null,
     val radarMovementBearingDeg: Double? = null,
     val radarEtaMinutes: Int? = null,
     val radarConfidence: Double = 0.0,
@@ -48,6 +49,7 @@ object WeatherWidgetStore {
         if (d.nextRainMinutes == null) e.remove("next") else e.putInt("next", d.nextRainMinutes)
         putDouble(e, "total", d.rainTotalMm); e.putBoolean("radar", d.radarDetected)
         putDouble(e, "distance", d.radarDistanceKm); putDouble(e, "speed", d.radarSpeedKmh); putDouble(e, "bearing", d.radarBearingDeg)
+        e.putString("radar_place", d.radarPlaceName)
         putDouble(e, "movement_bearing", d.radarMovementBearingDeg)
         if (d.radarEtaMinutes == null) e.remove("eta") else e.putInt("eta", d.radarEtaMinutes)
         e.putLong("confidence", java.lang.Double.doubleToRawLongBits(d.radarConfidence))
@@ -71,6 +73,7 @@ object WeatherWidgetStore {
             nextRainMinutes = if (p.contains("next")) p.getInt("next", 0) else null,
             rainTotalMm = getDouble(p, "total"), radarDetected = p.getBoolean("radar", false),
             radarDistanceKm = getDouble(p, "distance"), radarSpeedKmh = getDouble(p, "speed"), radarBearingDeg = getDouble(p, "bearing"),
+            radarPlaceName = p.getString("radar_place", null),
             radarMovementBearingDeg = getDouble(p, "movement_bearing"),
             radarEtaMinutes = if (p.contains("eta")) p.getInt("eta", 0) else null,
             radarConfidence = java.lang.Double.longBitsToDouble(p.getLong("confidence", java.lang.Double.doubleToRawLongBits(0.0))),

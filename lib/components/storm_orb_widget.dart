@@ -343,8 +343,13 @@ class _StormOrbWidgetState extends State<StormOrbWidget>
       return 'Čakám na spoľahlivý radarový track';
     }
     final bearing = result.radarPrecipitationBearingDeg!;
-    return 'Zrážky ${_compass(bearing)} (${bearing.round()}°)'
-        '${result.radarPathIntersectsUser ? ' • dráha pretína tvoju polohu' : ''}';
+    final place = result.radarPlaceName;
+    final path = result.radarPathIntersectsUser
+        ? ' • dráha pretína tvoju polohu'
+        : '';
+    return place != null
+        ? 'Zrážky prichádzajú od $place • ${_compass(bearing)}$path'
+        : 'Zrážky ${_compass(bearing)} (${bearing.round()}°)$path';
   }
 
   static String _compass(double deg) {

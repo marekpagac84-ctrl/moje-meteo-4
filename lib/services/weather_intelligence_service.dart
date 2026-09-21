@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
+import 'package:flutter/services.dart';
 
 import '../models/meteo_data.dart';
 import 'cloud_classifier_service.dart';
@@ -25,6 +26,7 @@ class WeatherIntelligenceResult {
   final double? radarSpeedKmh;
   final double? radarMovementBearingDeg;
   final double? radarPrecipitationBearingDeg;
+  final String? radarPlaceName;
   final int? radarEtaMinutes;
   final double? radarConfidence;
   final bool rainingAtUser;
@@ -65,6 +67,7 @@ class WeatherIntelligenceResult {
     required this.radarSpeedKmh,
     required this.radarMovementBearingDeg,
     required this.radarPrecipitationBearingDeg,
+    required this.radarPlaceName,
     required this.radarEtaMinutes,
     required this.radarConfidence,
     required this.rainingAtUser,
@@ -101,6 +104,9 @@ class WeatherIntelligenceService {
 
   final RadarTrackingService _radarTrackingService =
       RadarTrackingService();
+
+  static const MethodChannel _placeChannel =
+      MethodChannel('moje_meteo/widget');
 
   Future<WeatherIntelligenceResult> analyze({
     required double lat,
@@ -146,6 +152,7 @@ class WeatherIntelligenceService {
     bool? ecmwfRainExpected;
 
     RadarTrackingResult? radar;
+    String? radarPlaceName;
 
     // ==========================================================
     // 1. OPEN-METEO
@@ -462,6 +469,29 @@ class WeatherIntelligenceService {
 
           if (radar.confidence >= 0.70) {
             score += 0.05;
+          }
+        }
+
+        if (radar.precipitationDetected &&
+            !radar.rainingAtUser &&
+            radar.precipitationBearingDeg != null) {
+          try {
+            radarPlaceName = await _placeChannel.invokeMethod<String>(
+              'resolveRadarPlace',
+              {
+                'lat': lat,
+                'lng': lng,
+                'bearing': radar.precipitationBearingDeg,
+                'distance': radar.distanceKm,
+              },
+            );
+            if (radarPlaceName != null) {
+              evidence.add(
+                'Zrážková oblasť leží v smere od $radarPlaceName.',
+              );
+            }
+          } catch (_) {
+            radarPlaceName = null;
           }
         }
       } else {
@@ -899,6 +929,7 @@ class WeatherIntelligenceService {
       title = 'Radar: zrážky smerujú k tebe';
       description =
           'Radarový pohyb pretína tvoju polohu. '
+          '${radarPlaceName != null ? 'Zrážky prichádzajú zo smeru od $radarPlaceName. ' : ''}'
           '${distance != null ? 'Najbližší okraj je približne ${distance.toStringAsFixed(1)} km ďaleko. ' : ''}'
           '${speed != null ? 'Pozorovaná rýchlosť pohybu je približne ${speed.toStringAsFixed(0)} km/h. ' : ''}'
           'Odhad prvých zrážok je približne o $eta min.';
@@ -908,6 +939,7 @@ class WeatherIntelligenceService {
       title = 'Radar: zrážky sa približujú';
       description =
           'Radar sleduje približujúcu sa zrážkovú oblasť, '
+          '${radarPlaceName != null ? 'ktorá je v smere od $radarPlaceName, ' : ''}'
           'ale jej aktuálna dráha tvoju polohu nepretína.';
     } else if (stormNearby) {
       title =
@@ -1031,6 +1063,9 @@ class WeatherIntelligenceService {
 
       radarPrecipitationBearingDeg:
           radar?.precipitationBearingDeg,
+
+      radarPlaceName:
+          radarPlaceName,
 
       radarEtaMinutes:
           radar?.etaMinutes,
