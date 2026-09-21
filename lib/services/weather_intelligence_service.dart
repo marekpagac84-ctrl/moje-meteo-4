@@ -27,6 +27,7 @@ class WeatherIntelligenceResult {
   final double? radarPrecipitationBearingDeg;
   final int? radarEtaMinutes;
   final double? radarConfidence;
+  final bool rainingAtUser;
   final bool radarApproaching;
   final bool radarPathIntersectsUser;
   final String? radarStatus;
@@ -66,6 +67,7 @@ class WeatherIntelligenceResult {
     required this.radarPrecipitationBearingDeg,
     required this.radarEtaMinutes,
     required this.radarConfidence,
+    required this.rainingAtUser,
     required this.radarApproaching,
     required this.radarPathIntersectsUser,
     required this.radarStatus,
@@ -434,7 +436,11 @@ class WeatherIntelligenceService {
             );
           }
 
-          if (radar.approaching) {
+          if (radar.rainingAtUser) {
+            score += 0.22;
+            rainLikelySoon = true;
+            evidence.add('Radar potvrdzuje zrážky priamo v polohe používateľa.');
+          } else if (radar.approaching) {
             score += 0.16;
             evidence.add('Radar potvrdzuje, že zrážková oblasť sa približuje.');
           }
@@ -463,6 +469,17 @@ class WeatherIntelligenceService {
       }
     } catch (e) {
       evidence.add('Radar tracking sa nepodarilo načítať.');
+    }
+
+    final rainingAtUser =
+        radar?.rainingAtUser == true || precipitation >= 0.025;
+    if (rainingAtUser) {
+      rainLikelySoon = true;
+      evidence.add(
+        radar?.rainingAtUser == true
+            ? 'Aktuálny radarový pixel nad GPS polohou obsahuje zrážky.'
+            : 'Open-Meteo hlási aktuálne zrážky v GPS polohe.',
+      );
     }
 
     // ==========================================================
@@ -867,7 +884,12 @@ class WeatherIntelligenceService {
 
     String description;
 
-    if (radar?.pathIntersectsUser == true &&
+    if (rainingAtUser) {
+      title = 'Aktuálne prší v tvojej polohe';
+      description = radar?.rainingAtUser == true
+          ? 'Radar potvrdzuje zrážky priamo nad GPS polohou. ETA sa nezobrazuje, pretože zrážky už dorazili.'
+          : 'Aktuálne meteorologické meranie hlási zrážky v tvojej GPS polohe. Radar ich môže zobrazovať s krátkym oneskorením.';
+    } else if (radar?.pathIntersectsUser == true &&
         radar?.etaMinutes != null &&
         (radar?.confidence ?? 0.0) >= 0.50) {
       final eta = radar!.etaMinutes!;
@@ -1015,6 +1037,9 @@ class WeatherIntelligenceService {
 
       radarConfidence:
           radar?.confidence,
+
+      rainingAtUser:
+          rainingAtUser,
 
       radarApproaching:
           radar?.approaching ?? false,

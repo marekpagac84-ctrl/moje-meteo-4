@@ -40,6 +40,8 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
                 radarMovementBearingDeg = radar.movementBearingDeg,
                 radarEtaMinutes = radar.etaMinutes,
                 radarConfidence = radar.confidence,
+                rainingAtUser = radar.rainingAtUser || weather.currentPrecipitation >= 0.025 ||
+                    weather.weatherCode in listOf(51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99),
                 radarApproaching = radar.approaching,
                 radarPathIntersects = radar.pathIntersects,
                 radarStatus = radar.status,
@@ -56,7 +58,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
 
     private fun fetchWeather(lat: Double, lng: Double): ModelWeather {
         val url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lng" +
-            "&current=temperature_2m,apparent_temperature,weather_code,cloud_cover" +
+            "&current=temperature_2m,apparent_temperature,weather_code,cloud_cover,precipitation" +
             "&hourly=precipitation_probability&forecast_hours=6" +
             "&minutely_15=precipitation&forecast_minutely_15=16&timezone=auto"
         val json = JSONObject(getText(url))
@@ -65,6 +67,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
         val apparent = current.optDouble("apparent_temperature", Double.NaN).takeUnless { it.isNaN() }
         val weatherCode = if (current.has("weather_code")) current.optInt("weather_code") else null
         val cloudCover = if (current.has("cloud_cover")) current.optInt("cloud_cover") else null
+        val currentPrecipitation = current.optDouble("precipitation", 0.0)
         val probs = json.optJSONObject("hourly")?.optJSONArray("precipitation_probability")
         val probability = if (probs != null && probs.length() > 0 && !probs.isNull(0)) probs.optInt(0) else null
         val arr = json.optJSONObject("minutely_15")?.optJSONArray("precipitation")
@@ -78,7 +81,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
             }
         }
         fetchSatelliteClouds(lat, lng)
-        return ModelWeather(temp, apparent, weatherCode, cloudCover, probability, next, total)
+        return ModelWeather(temp, apparent, weatherCode, cloudCover, probability, next, total, currentPrecipitation)
     }
 
     private fun fetchSatelliteClouds(lat: Double, lng: Double) {
@@ -120,16 +123,19 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
         }
         if (observations.isEmpty()) {
             return RadarResult(
-                false, null, null, null, null, null, 0.70, false, false,
+                false, null, null, null, null, null, 0.70, false, false, false,
                 "V okolí radar nezachytil zrážky."
             )
         }
         val latest = observations.last()
+        val rainingAtUser = latest.analysis.distanceKm != null &&
+            latest.analysis.distanceKm <= max(1.0, latest.analysis.kmPerPixel * 2.5)
         if (observations.size < 2) {
             return RadarResult(
                 true, latest.analysis.distanceKm, null, latest.analysis.bearingDeg,
-                null, null, 0.25, false, false,
-                "Zrážky sú v okolí, ale chýba história pohybu."
+                null, null, 0.25, rainingAtUser, false, false,
+                if (rainingAtUser) "Radar potvrdzuje zrážky priamo v tvojej polohe."
+                else "Zrážky sú v okolí, ale chýba história pohybu."
             )
         }
         val oldest = observations.first()
@@ -170,7 +176,9 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
             ((latest.analysis.distanceKm!! / speed) * 60.0).roundToInt().takeIf { it in 0..120 }
         } else null
         if (confidence < 0.50) eta = null
+        if (rainingAtUser) eta = null
         val status = when {
+            rainingAtUser -> "Radar potvrdzuje zrážky priamo v tvojej polohe."
             !usefulMotion -> "Zrážky sú v okolí, pohyb zatiaľ nie je spoľahlivý."
             !approaching -> "Zrážky sa k tvojej polohe nepribližujú."
             !intersects -> "Zrážková oblasť podľa dráhy tvoju polohu minie."
@@ -180,7 +188,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
         return RadarResult(
             true, latest.analysis.distanceKm, if (usefulMotion) speed else null,
             latest.analysis.bearingDeg, movementBearing, eta, confidence,
-            approaching, intersects, status
+            rainingAtUser, approaching, intersects, status
         )
     }
 
@@ -256,7 +264,7 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
     } catch (_: Exception) { null }
 }
 
-data class ModelWeather(val temperature: Double?, val apparentTemperature: Double?, val weatherCode: Int?, val cloudCover: Int?, val precipProbability: Int?, val nextRainMinutes: Int?, val rainTotalMm: Double?)
+data class ModelWeather(val temperature: Double?, val apparentTemperature: Double?, val weatherCode: Int?, val cloudCover: Int?, val precipProbability: Int?, val nextRainMinutes: Int?, val rainTotalMm: Double?, val currentPrecipitation: Double)
 data class RadarResult(
     val detected: Boolean,
     val distanceKm: Double?,
@@ -265,12 +273,13 @@ data class RadarResult(
     val movementBearingDeg: Double?,
     val etaMinutes: Int?,
     val confidence: Double,
+    val rainingAtUser: Boolean,
     val approaching: Boolean,
     val pathIntersects: Boolean,
     val status: String
 ) {
     companion object {
-        fun unavailable(status: String) = RadarResult(false, null, null, null, null, null, 0.0, false, false, status)
+        fun unavailable(status: String) = RadarResult(false, null, null, null, null, null, 0.0, false, false, false, status)
     }
 }
 data class RadarAnalysis(

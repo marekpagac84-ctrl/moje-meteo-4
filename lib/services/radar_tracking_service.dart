@@ -14,6 +14,7 @@ class RadarTrackingResult {
   final DateTime generatedAt;
   final bool radarAvailable;
   final bool precipitationDetected;
+  final bool rainingAtUser;
   final bool approaching;
   final bool pathIntersectsUser;
 
@@ -49,6 +50,7 @@ class RadarTrackingResult {
     required this.generatedAt,
     required this.radarAvailable,
     required this.precipitationDetected,
+    required this.rainingAtUser,
     required this.approaching,
     required this.pathIntersectsUser,
     required this.distanceKm,
@@ -69,6 +71,7 @@ class RadarTrackingResult {
       generatedAt: DateTime.now(),
       radarAvailable: false,
       precipitationDetected: false,
+      rainingAtUser: false,
       approaching: false,
       pathIntersectsUser: false,
       distanceKm: null,
@@ -199,6 +202,7 @@ class RadarTrackingService {
           generatedAt: DateTime.now(),
           radarAvailable: true,
           precipitationDetected: false,
+          rainingAtUser: false,
           approaching: false,
           pathIntersectsUser: false,
           distanceKm: null,
@@ -216,12 +220,15 @@ class RadarTrackingService {
       }
 
       final latest = observations.last;
+      final rainingAtUser =
+          latest.nearestEdgeKm <= math.max(1.0, kmPerPixel * 2.5);
 
       if (observations.length < 2) {
         return RadarTrackingResult(
           generatedAt: DateTime.now(),
           radarAvailable: true,
           precipitationDetected: true,
+          rainingAtUser: rainingAtUser,
           approaching: false,
           pathIntersectsUser: false,
           distanceKm: latest.nearestEdgeKm,
@@ -234,7 +241,9 @@ class RadarTrackingService {
           componentRadiusKm: latest.radiusKm,
           framesUsed: 1,
           source: 'RainViewer',
-          status: 'Zrážky sú na radare, ale chýba história pre spoľahlivý pohyb.',
+          status: rainingAtUser
+              ? 'Radar potvrdzuje zrážky priamo v tvojej polohe.'
+              : 'Zrážky sú na radare, ale chýba história pre spoľahlivý pohyb.',
         );
       }
 
@@ -318,9 +327,12 @@ class RadarTrackingService {
 
       // Do not expose a precise ETA when confidence is too weak.
       if (confidence < 0.50) etaMinutes = null;
+      // The rain has already arrived; an ETA of 0 minutes is misleading.
+      if (rainingAtUser) etaMinutes = null;
 
       final status = _statusText(
         precipitationDetected: true,
+        rainingAtUser: rainingAtUser,
         hasUsefulMotion: hasUsefulMotion,
         approaching: approaching,
         pathIntersects: pathIntersects,
@@ -332,6 +344,7 @@ class RadarTrackingService {
         generatedAt: DateTime.now(),
         radarAvailable: true,
         precipitationDetected: true,
+        rainingAtUser: rainingAtUser,
         approaching: approaching,
         pathIntersectsUser: pathIntersects,
         distanceKm: latest.nearestEdgeKm,
@@ -535,6 +548,7 @@ class RadarTrackingService {
 
   String _statusText({
     required bool precipitationDetected,
+    required bool rainingAtUser,
     required bool hasUsefulMotion,
     required bool approaching,
     required bool pathIntersects,
@@ -543,6 +557,9 @@ class RadarTrackingService {
   }) {
     if (!precipitationDetected) {
       return 'Radar v okolí nezachytil zrážky.';
+    }
+    if (rainingAtUser) {
+      return 'Radar potvrdzuje zrážky priamo v tvojej polohe.';
     }
     if (!hasUsefulMotion) {
       return 'Radar zachytil zrážky, ale pohyb zatiaľ nie je spoľahlivý.';

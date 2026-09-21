@@ -20,6 +20,7 @@ data class WidgetWeatherData(
     val radarMovementBearingDeg: Double? = null,
     val radarEtaMinutes: Int? = null,
     val radarConfidence: Double = 0.0,
+    val rainingAtUser: Boolean = false,
     val radarApproaching: Boolean = false,
     val radarPathIntersects: Boolean = false,
     val radarStatus: String = "Radar zatiaľ nemá dáta.",
@@ -50,6 +51,7 @@ object WeatherWidgetStore {
         putDouble(e, "movement_bearing", d.radarMovementBearingDeg)
         if (d.radarEtaMinutes == null) e.remove("eta") else e.putInt("eta", d.radarEtaMinutes)
         e.putLong("confidence", java.lang.Double.doubleToRawLongBits(d.radarConfidence))
+        e.putBoolean("raining_at_user", d.rainingAtUser)
         e.putBoolean("approaching", d.radarApproaching)
         e.putBoolean("intersects", d.radarPathIntersects)
         e.putString("radar_status", d.radarStatus)
@@ -72,6 +74,7 @@ object WeatherWidgetStore {
             radarMovementBearingDeg = getDouble(p, "movement_bearing"),
             radarEtaMinutes = if (p.contains("eta")) p.getInt("eta", 0) else null,
             radarConfidence = java.lang.Double.longBitsToDouble(p.getLong("confidence", java.lang.Double.doubleToRawLongBits(0.0))),
+            rainingAtUser = p.getBoolean("raining_at_user", false),
             radarApproaching = p.getBoolean("approaching", false),
             radarPathIntersects = p.getBoolean("intersects", false),
             radarStatus = p.getString("radar_status", "Radar zatiaľ nemá dáta.") ?: "Radar zatiaľ nemá dáta.",

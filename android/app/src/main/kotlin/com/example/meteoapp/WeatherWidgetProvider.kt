@@ -39,6 +39,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             rv.setTextViewText(R.id.widget_feels, d.apparentTemperature?.let { "Pocitovo ${it.roundToInt()}°" } ?: "Pocitovo —")
             rv.setTextViewText(R.id.widget_probability, d.precipProbability?.let { "$it %" } ?: "— %")
             rv.setTextViewText(R.id.widget_eta, when {
+                d.rainingAtUser -> "AKTUÁLNE PRŠÍ V TVOJEJ POLOHE"
                 d.radarEtaMinutes != null && d.radarPathIntersects && d.radarConfidence >= 0.50 ->
                     "DÁŽĎ ZA ${d.radarEtaMinutes} MIN"
                 d.radarDetected && d.radarApproaching && !d.radarPathIntersects ->
@@ -54,7 +55,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             rv.setTextViewText(R.id.widget_updated, if (refreshing) "Aktualizujem…" else "Aktualizované ${d.updatedAt ?: "—"}")
             rv.setTextViewText(
                 R.id.widget_source,
-                if (d.radarDetected) "LIVE RADAR • ISTOTA ${(d.radarConfidence * 100).roundToInt()} % • RainViewer"
+                if (d.rainingAtUser) "AKTUÁLNE ZRÁŽKY • RADAR + OPEN-METEO"
+                else if (d.radarDetected) "LIVE RADAR • ISTOTA ${(d.radarConfidence * 100).roundToInt()} % • RainViewer"
                 else "RADAR • ${d.radarStatus}"
             )
             rv.setImageViewBitmap(R.id.widget_weather_effects, drawWeatherEffects(context, d))

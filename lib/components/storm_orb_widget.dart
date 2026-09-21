@@ -231,7 +231,9 @@ class _StormOrbWidgetState extends State<StormOrbWidget>
                     child: Column(
                       children: [
                         Text(
-                          eta != null && (result?.radarPathIntersectsUser ?? false)
+                          (result?.rainingAtUser ?? false)
+                              ? 'AKTUÁLNE PRŠÍ V TVOJEJ POLOHE'
+                              : eta != null && (result?.radarPathIntersectsUser ?? false)
                               ? 'DÁŽĎ ZA $eta MIN'
                               : (result?.radarApproaching ?? false)
                                   ? 'ZRÁŽKY SA PRIBLIŽUJÚ'
@@ -334,6 +336,9 @@ class _StormOrbWidgetState extends State<StormOrbWidget>
   }
 
   static String _directionLine(WeatherIntelligenceResult? result) {
+    if (result?.rainingAtUser == true) {
+      return 'Radar/model potvrdzuje zrážky priamo nad tebou';
+    }
     if (result == null || result.radarPrecipitationBearingDeg == null) {
       return 'Čakám na spoľahlivý radarový track';
     }
