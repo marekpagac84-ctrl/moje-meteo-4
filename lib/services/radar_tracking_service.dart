@@ -220,8 +220,11 @@ class RadarTrackingService {
       }
 
       final latest = observations.last;
+      // "Prsi u teba" vyzaduje radarovy pixel priamo nad GPS bodom.
+      // Povodna tolerancia 2.5 px pri zoome 7 znamenala takmer 2 km a
+      // nespravne oznacovala zrazky v okoli ako dazd v polohe.
       final rainingAtUser =
-          latest.nearestEdgeKm <= math.max(1.0, kmPerPixel * 2.5);
+          latest.nearestEdgeKm <= math.max(0.6, kmPerPixel * 0.75);
 
       if (observations.length < 2) {
         return RadarTrackingResult(

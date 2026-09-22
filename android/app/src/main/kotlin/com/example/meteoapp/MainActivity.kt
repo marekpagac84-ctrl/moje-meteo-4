@@ -41,10 +41,7 @@ class MainActivity : FlutterActivity() {
                     }
                     "updateWeatherSnapshot" -> {
                         val old = WeatherWidgetStore.read(this)
-                        val precipitation = call.argument<Double>("currentPrecipitation") ?: 0.0
                         val code = call.argument<Int>("weatherCode")
-                        val raining = precipitation >= 0.025 ||
-                            code in listOf(51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99)
                         WeatherWidgetStore.save(this, old.copy(
                             lat = call.argument<Double>("lat") ?: old.lat,
                             lng = call.argument<Double>("lng") ?: old.lng,
@@ -55,7 +52,8 @@ class MainActivity : FlutterActivity() {
                             cloudCover = call.argument<Int>("cloudCover"),
                             precipProbability = call.argument<Int>("precipProbability"),
                             rainTotalMm = call.argument<Double>("rainTotalMm"),
-                            rainingAtUser = raining,
+                            // Stav "prsi u teba" meni az radarovy snapshot.
+                            rainingAtUser = old.rainingAtUser,
                             updatedAt = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                         ))
                         WeatherWidgetProvider.updateAll(this, refreshing = false)

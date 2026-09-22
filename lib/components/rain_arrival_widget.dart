@@ -1061,13 +1061,16 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
     final minutes = ctx?.nextRainMinutes ?? _meteo?.rainArrivalMinutes;
     final probability = ctx?.nextRainProbability ?? _currentHourlyValue(_meteo?.hourlyPrecipitationProbability);
     final amount = ctx?.nextRainAmount ?? _currentHourlyValue(_meteo?.hourlyPrecipitation);
+    final measurable = (amount ?? 0.0) >= 0.1;
 
     final title = minutes == null
         ? 'Najbližší dážď sa zatiaľ nehlási'
-        : 'Dážď ${SkyContextService.formatMinutes(minutes)}';
+        : measurable
+            ? 'Dážď ${SkyContextService.formatMinutes(minutes)}'
+            : 'Možnosť dažďa ${SkyContextService.formatMinutes(minutes)}';
     final subtitle = minutes == null
         ? 'Modely momentálne nevidia jasný zrážkový nástup v blízkom horizonte.'
-        : '${ctx?.nextRainTime == null ? '' : 'Okolo ${SkyContextService.formatClock(ctx!.nextRainTime!)} • '}${ctx?.precipitationDescription ?? 'zrážky'}';
+        : '${ctx?.nextRainTime == null ? '' : 'Okolo ${SkyContextService.formatClock(ctx!.nextRainTime!)} • '}${measurable ? (ctx?.precipitationDescription ?? 'zrážky') : 'modelový signál, zatiaľ bez merateľného úhrnu'}';
 
     return _sectionCard(
       onTap: () => _showParameterSheet(_MetricType.rain),

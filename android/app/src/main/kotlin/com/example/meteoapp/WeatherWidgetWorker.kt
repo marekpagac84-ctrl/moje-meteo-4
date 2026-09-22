@@ -50,8 +50,9 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
                 radarMovementBearingDeg = radar.movementBearingDeg,
                 radarEtaMinutes = radar.etaMinutes,
                 radarConfidence = radar.confidence,
-                rainingAtUser = radar.rainingAtUser || weather.currentPrecipitation >= 0.025 ||
-                    weather.weatherCode in listOf(51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99),
+                // Fakticke "prsi v polohe" smie potvrdit iba radarovy pixel.
+                // Modelova hodnota a WMO kod su predpoved, nie pozorovanie.
+                rainingAtUser = radar.rainingAtUser,
                 radarApproaching = radar.approaching,
                 radarPathIntersects = radar.pathIntersects,
                 radarStatus = radar.status,
@@ -138,8 +139,10 @@ class WeatherWidgetWorker(appContext: Context, params: WorkerParameters) : Corou
             )
         }
         val latest = observations.last()
+        // Rovnaka prisna definicia ako vo Flutter radare: zrazka musi lezat
+        // priamo na GPS pixeli, nie iba priblizne do dvoch kilometrov.
         val rainingAtUser = latest.analysis.distanceKm != null &&
-            latest.analysis.distanceKm <= max(1.0, latest.analysis.kmPerPixel * 2.5)
+            latest.analysis.distanceKm <= max(0.6, latest.analysis.kmPerPixel * 0.75)
         if (observations.size < 2) {
             return RadarResult(
                 true, latest.analysis.distanceKm, null, latest.analysis.bearingDeg,

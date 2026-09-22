@@ -515,15 +515,10 @@ class SkyContextService {
 
       bool wetAt(int i) {
         final amount = i < p15.length ? p15[i] : 0.0;
-        final code = i < c15.length ? c15[i] : 0;
-        final wetCode = (code >= 51 && code <= 67) ||
-            (code >= 71 && code <= 77) ||
-            (code >= 80 && code <= 82) ||
-            (code >= 85 && code <= 86) ||
-            code == 95 || code == 96 || code == 99;
         // 0.025 mm za 15 min ~= 0.1 mm/h. To uz povazujeme za
-        // meratelny zrazkovy signal, no ignorujeme numericky sum.
-        return amount >= 0.025 || wetCode;
+        // meratelny zrazkovy signal. Samotny WMO kod bez uhrnu nestaci:
+        // vytvaral ETA na dazd pri 0.0 mm.
+        return amount >= 0.025;
       }
 
       int first = -1;

@@ -523,14 +523,17 @@ class WeatherIntelligenceService {
       evidence.add('Radar tracking sa nepodarilo načítať.');
     }
 
-    final rainingAtUser =
-        radar?.rainingAtUser == true || precipitation >= 0.025;
+    // Iba radarovy pixel priamo nad GPS polohou je pozorovanie, z ktoreho
+    // mozeme tvrdit, ze u pouzivatela prave prsi. Open-Meteo je model a jeho
+    // current precipitation nesmie byt vydavana za realne radarove meranie.
+    final rainingAtUser = radar?.rainingAtUser == true;
     if (rainingAtUser) {
       rainLikelySoon = true;
+      evidence.add('Aktuálny radarový pixel nad GPS polohou obsahuje zrážky.');
+    } else if (precipitation >= 0.025) {
+      rainLikelySoon = true;
       evidence.add(
-        radar?.rainingAtUser == true
-            ? 'Aktuálny radarový pixel nad GPS polohou obsahuje zrážky.'
-            : 'Open-Meteo hlási aktuálne zrážky v GPS polohe.',
+        'Open-Meteo modeluje zrážky v aktuálnom intervale, radar ich však priamo nad GPS polohou nepotvrdil.',
       );
     }
 
@@ -938,9 +941,8 @@ class WeatherIntelligenceService {
 
     if (rainingAtUser) {
       title = 'Aktuálne prší v tvojej polohe';
-      description = radar?.rainingAtUser == true
-          ? 'Radar potvrdzuje zrážky priamo nad GPS polohou. ETA sa nezobrazuje, pretože zrážky už dorazili.'
-          : 'Aktuálne meteorologické meranie hlási zrážky v tvojej GPS polohe. Radar ich môže zobrazovať s krátkym oneskorením.';
+      description =
+          'Radar potvrdzuje zrážky priamo nad GPS polohou. ETA sa nezobrazuje, pretože zrážky už dorazili.';
     } else if (radar?.pathIntersectsUser == true &&
         radar?.etaMinutes != null &&
         (radar?.confidence ?? 0.0) >= 0.50) {
