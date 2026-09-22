@@ -158,7 +158,27 @@ class WeatherIntelligenceService {
     // 1. OPEN-METEO
     // ==========================================================
 
-    try {
+    if (meteoData != null) {
+      final index = meteoData.currentHourlyIndex;
+      rainProbability =
+          meteoData.precipitationProbabilityAt(index) ?? 0;
+      precipitation = meteoData.currentPrecipitation;
+      windDirection = meteoData.currentWindDirection;
+      windSpeed = meteoData.currentWindSpeed;
+      final probabilities = meteoData.hourlyPrecipitationProbability ?? const <int>[];
+      final precipitations = meteoData.hourlyPrecipitation ?? const <double>[];
+      for (int i = index; i < probabilities.length && i < index + 6; i++) {
+        final rain = i < precipitations.length ? precipitations[i] : 0.0;
+        if (probabilities[i] >= 40 || rain >= 0.1) {
+          rainLikelySoon = true;
+          break;
+        }
+      }
+      evidence.add('Open-Meteo používa spoločnú aktuálnu snímku aplikácie.');
+      if (rainLikelySoon) score += 0.14;
+      if (rainProbability >= 60) score += 0.10;
+      if (precipitation > 0.5) score += 0.12;
+    } else try {
       final uri = Uri.parse(
         '$_openMeteo'
         '?latitude=$lat'
@@ -327,8 +347,8 @@ class WeatherIntelligenceService {
 
       if (probs != null &&
           probs.isNotEmpty) {
-        final localProbability =
-            probs.first;
+        final localProbability = probs[
+            math.min(meteoData.currentHourlyIndex, probs.length - 1)];
 
         if (localProbability >
             rainProbability) {
@@ -339,10 +359,12 @@ class WeatherIntelligenceService {
 
       if (precips != null &&
           precips.isNotEmpty) {
-        if (precips.first >
+        final localPrecipitation = precips[
+            math.min(meteoData.currentHourlyIndex, precips.length - 1)];
+        if (localPrecipitation >
             precipitation) {
           precipitation =
-              precips.first;
+              localPrecipitation;
         }
       }
     }

@@ -4,6 +4,9 @@ import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : FlutterActivity() {
     private val channelName = "moje_meteo/widget"
@@ -34,6 +37,50 @@ class MainActivity : FlutterActivity() {
                     "refreshWidget" -> {
                         WeatherWidgetScheduler.runNow(this)
                         WeatherWidgetProvider.updateAll(this, refreshing = true)
+                        result.success(true)
+                    }
+                    "updateWeatherSnapshot" -> {
+                        val old = WeatherWidgetStore.read(this)
+                        val precipitation = call.argument<Double>("currentPrecipitation") ?: 0.0
+                        val code = call.argument<Int>("weatherCode")
+                        val raining = precipitation >= 0.025 ||
+                            code in listOf(51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99)
+                        WeatherWidgetStore.save(this, old.copy(
+                            lat = call.argument<Double>("lat") ?: old.lat,
+                            lng = call.argument<Double>("lng") ?: old.lng,
+                            locationName = call.argument<String>("name") ?: old.locationName,
+                            temperature = call.argument<Double>("temperature"),
+                            apparentTemperature = call.argument<Double>("apparentTemperature"),
+                            weatherCode = code,
+                            cloudCover = call.argument<Int>("cloudCover"),
+                            precipProbability = call.argument<Int>("precipProbability"),
+                            rainTotalMm = call.argument<Double>("rainTotalMm"),
+                            rainingAtUser = raining,
+                            updatedAt = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                        ))
+                        WeatherWidgetProvider.updateAll(this, refreshing = false)
+                        result.success(true)
+                    }
+                    "updateRadarSnapshot" -> {
+                        val old = WeatherWidgetStore.read(this)
+                        WeatherWidgetStore.save(this, old.copy(
+                            lat = call.argument<Double>("lat") ?: old.lat,
+                            lng = call.argument<Double>("lng") ?: old.lng,
+                            radarDetected = call.argument<Boolean>("detected") ?: false,
+                            radarDistanceKm = call.argument<Double>("distanceKm"),
+                            radarSpeedKmh = call.argument<Double>("speedKmh"),
+                            radarBearingDeg = call.argument<Double>("bearingDeg"),
+                            radarPlaceName = call.argument<String>("placeName"),
+                            radarMovementBearingDeg = call.argument<Double>("movementBearingDeg"),
+                            radarEtaMinutes = call.argument<Int>("etaMinutes"),
+                            radarConfidence = call.argument<Double>("confidence") ?: 0.0,
+                            rainingAtUser = call.argument<Boolean>("rainingAtUser") ?: old.rainingAtUser,
+                            radarApproaching = call.argument<Boolean>("approaching") ?: false,
+                            radarPathIntersects = call.argument<Boolean>("pathIntersects") ?: false,
+                            radarStatus = call.argument<String>("status") ?: "Radar zatiaľ nemá dáta.",
+                            updatedAt = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                        ))
+                        WeatherWidgetProvider.updateAll(this, refreshing = false)
                         result.success(true)
                     }
                     "resolveRadarPlace" -> {

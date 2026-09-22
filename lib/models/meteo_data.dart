@@ -68,6 +68,9 @@ class MeteoApiData {
   // ==========================================================
 
   final double currentTemperature;
+  final double currentApparentTemperature;
+  final double currentPrecipitation;
+  final int currentCloudCover;
   final double currentWindSpeed;
   final double currentWindDirection;
   final double currentPressure;
@@ -109,6 +112,9 @@ class MeteoApiData {
 
   MeteoApiData({
     required this.currentTemperature,
+    this.currentApparentTemperature = 0.0,
+    this.currentPrecipitation = 0.0,
+    this.currentCloudCover = 0,
     required this.currentWindSpeed,
     required this.currentWindDirection,
     required this.currentPressure,
@@ -413,6 +419,9 @@ class MeteoApiData {
     // ========================================================
 
     double currentTemperature = 0.0;
+    double currentApparentTemperature = 0.0;
+    double currentPrecipitation = 0.0;
+    int currentCloudCover = 0;
     double currentWindSpeed = 0.0;
     double currentWindDirection = 0.0;
     double currentPressure = 0.0;
@@ -461,6 +470,16 @@ class MeteoApiData {
                       as num?)
                   ?.toDouble() ??
               0.0;
+
+      currentApparentTemperature =
+          (current['apparent_temperature'] as num?)?.toDouble() ??
+              currentTemperature;
+
+      currentPrecipitation =
+          (current['precipitation'] as num?)?.toDouble() ?? 0.0;
+
+      currentCloudCover =
+          (current['cloud_cover'] as num?)?.toInt() ?? 0;
 
       currentWindSpeed =
           (current['wind_speed_10m']
@@ -765,6 +784,12 @@ class MeteoApiData {
     return MeteoApiData(
       currentTemperature:
           currentTemperature,
+      currentApparentTemperature:
+          currentApparentTemperature,
+      currentPrecipitation:
+          currentPrecipitation,
+      currentCloudCover:
+          currentCloudCover,
       currentWindSpeed:
           currentWindSpeed,
       currentWindDirection:

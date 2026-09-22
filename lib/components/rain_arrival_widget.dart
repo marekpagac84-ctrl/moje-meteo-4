@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -17,7 +18,7 @@ import 'weather_scene_background.dart';
 class RainArrivalWidget extends StatefulWidget {
   final MeteoApiData? meteoData;
   final bool isLoading;
-  final VoidCallback onRefresh;
+  final Future<void> Function() onRefresh;
   final VoidCallback onOpenMap;
 
   const RainArrivalWidget({
@@ -34,6 +35,7 @@ class RainArrivalWidget extends StatefulWidget {
 
 class _RainArrivalWidgetState extends State<RainArrivalWidget>
     with SingleTickerProviderStateMixin {
+  static const MethodChannel _widgetChannel = MethodChannel('moje_meteo/widget');
   final SkyContextService _contextService = SkyContextService();
   final CloudClassifierService _cloudClassifier = CloudClassifierService();
   final ImagePicker _picker = ImagePicker();
@@ -192,14 +194,42 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
         _weatherIntelligence = intelligence;
         _weatherIntelligenceUpdatedAt = DateTime.now();
       });
+      await _syncWidgetRadar(intelligence, position);
     } catch (_) {
       // Radar/Weather Intelligence je doplnková vrstva.
       // Ak zlyhá sieť alebo radarový zdroj, pôvodné Meteo UI ostane funkčné.
     }
   }
 
+  Future<void> _syncWidgetRadar(
+    WeatherIntelligenceResult intelligence,
+    Position position,
+  ) async {
+    try {
+      await _widgetChannel.invokeMethod('updateRadarSnapshot', {
+        'lat': position.latitude,
+        'lng': position.longitude,
+        'detected': intelligence.radarDistanceKm != null ||
+            intelligence.rainingAtUser,
+        'distanceKm': intelligence.radarDistanceKm,
+        'speedKmh': intelligence.radarSpeedKmh,
+        'bearingDeg': intelligence.radarPrecipitationBearingDeg,
+        'movementBearingDeg': intelligence.radarMovementBearingDeg,
+        'placeName': intelligence.radarPlaceName,
+        'etaMinutes': intelligence.radarEtaMinutes,
+        'confidence': intelligence.radarConfidence ?? 0.0,
+        'rainingAtUser': intelligence.rainingAtUser,
+        'approaching': intelligence.radarApproaching,
+        'pathIntersects': intelligence.radarPathIntersectsUser,
+        'status': intelligence.radarStatus,
+      });
+    } catch (_) {
+      // Domáci widget je doplnok; aplikácia musí fungovať aj bez neho.
+    }
+  }
+
   Future<void> _refreshEverything() async {
-    widget.onRefresh();
+    await widget.onRefresh();
     await _loadContext();
   }
 
@@ -439,10 +469,9 @@ class _RainArrivalWidgetState extends State<RainArrivalWidget>
               apparentTemperature: _apparentTemperature,
               locationName: 'Moja GPS poloha',
               heading: _heading,
-              rainProbability: (_ctx?.nextRainProbability ??
-                      _currentHourlyValue(
-                          _meteo?.hourlyPrecipitationProbability))
-                  ?.round(),
+              rainProbability: _weatherIntelligence?.rainProbability ??
+                  _currentHourlyValue(
+                      _meteo?.hourlyPrecipitationProbability)?.round(),
               rainTotalMm: _ctx?.rainTotalAmount,
               updatedAt: _weatherIntelligenceUpdatedAt,
               onRefresh: _refreshEverything,

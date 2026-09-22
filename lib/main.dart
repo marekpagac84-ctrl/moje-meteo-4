@@ -629,6 +629,9 @@ class _MainScreenState extends State<MainScreen> {
         '&longitude=$_lng'
         '&current='
         'temperature_2m,'
+        'apparent_temperature,'
+        'precipitation,'
+        'cloud_cover,'
         'wind_speed_10m,'
         'wind_direction_10m,'
         'surface_pressure,'
@@ -695,6 +698,8 @@ class _MainScreenState extends State<MainScreen> {
         _isLoadingMeteo = false;
       });
 
+      await _syncHomeWidgetWeather(meteo);
+
       debugPrint(
         'CURRENT TEMP: ${meteo.currentTemperature}',
       );
@@ -741,6 +746,37 @@ class _MainScreenState extends State<MainScreen> {
       setState(() {
         _isLoadingMeteo = false;
       });
+    }
+  }
+
+  Future<void> _syncHomeWidgetWeather(MeteoApiData meteo) async {
+    final index = meteo.currentHourlyIndex;
+    final probabilities = meteo.hourlyPrecipitationProbability;
+    final precipitations = meteo.hourlyPrecipitation;
+    final probability = probabilities != null && index < probabilities.length
+        ? probabilities[index]
+        : null;
+    double total = 0.0;
+    if (precipitations != null) {
+      for (int i = index; i < precipitations.length && i < index + 4; i++) {
+        total += precipitations[i];
+      }
+    }
+    try {
+      await _widgetChannel.invokeMethod('updateWeatherSnapshot', {
+        'lat': _lat,
+        'lng': _lng,
+        'name': _locationName,
+        'temperature': meteo.currentTemperature,
+        'apparentTemperature': meteo.currentApparentTemperature,
+        'weatherCode': meteo.currentWeatherCode,
+        'cloudCover': meteo.currentCloudCover,
+        'precipProbability': probability,
+        'currentPrecipitation': meteo.currentPrecipitation,
+        'rainTotalMm': total,
+      });
+    } catch (e) {
+      debugPrint('Widget weather sync error: $e');
     }
   }
 
